@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import * as unitController from './unit.controller'
+import * as unitController from '../../controllers/unit.controller'
 import { validate } from '../../middleware/validate'
 import { createUnitSchema, updateUnitSchema } from './unit.validation'
 

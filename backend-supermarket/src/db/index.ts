@@ -1,12 +1,18 @@
 import { Pool, type QueryResult, type QueryResultRow } from 'pg'
 import { config } from '../config'
 
+const poolConfig = config.db.databaseUrl
+  ? { connectionString: config.db.databaseUrl }
+  : {
+      host: config.db.host,
+      port: config.db.port,
+      database: config.db.database,
+      user: config.db.user,
+      password: config.db.password,
+    }
+
 export const pool = new Pool({
-  host: config.db.host,
-  port: config.db.port,
-  database: config.db.database,
-  user: config.db.user,
-  password: config.db.password,
+  ...poolConfig,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
@@ -14,7 +20,7 @@ export const pool = new Pool({
 
 pool.on('error', (err: Error) => {
   console.error('Unexpected PostgreSQL pool error:', err)
-  process.exit(-1)
+  process.exit(1)
 })
 
 export async function query<T extends QueryResultRow>(

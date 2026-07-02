@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import * as conversionController from './conversion.controller'
+import * as conversionController from '../../controllers/conversion.controller'
 import { validate } from '../../middleware/validate'
 import { createConversionSchema, updateConversionSchema, previewConversionSchema } from './conversion.validation'
 

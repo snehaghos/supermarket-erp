@@ -18,13 +18,3 @@ export const updateUnitSchema = z.object({
 
 export type CreateUnitInput = z.infer<typeof createUnitSchema>
 export type UpdateUnitInput = z.infer<typeof updateUnitSchema>
-
-export interface UnitRow {
-  id: string
-  name: string
-  symbol: string
-  type: UnitType
-  status: 'active' | 'inactive'
-  createdAt: string
-  updatedAt: string
-}
