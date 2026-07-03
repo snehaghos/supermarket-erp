@@ -4,7 +4,6 @@ import { AppError } from '../middleware/errorHandler'
 import type { UnitRow } from '../modules/units/unit.model'
 import type { CreateUnitInput, UpdateUnitInput } from '../modules/units/unit.validation'
 
-// ── Row mapper ────────────────────────────────────────────────────
 const toUnitRow = (row: Record<string, unknown>): UnitRow => ({
   id: row.id as string,
   name: row.name as string,

@@ -46,7 +46,6 @@ const CONVERSION_JOIN_SQL = `
   JOIN units ch ON ch.id = c.child_unit_id
 `
 
-// ── Repository (SQL queries) ──────────────────────────────────────
 
 async function findAll(): Promise<ConversionRow[]> {
   const result = await query<ConversionDbRow>(
@@ -137,7 +136,6 @@ async function getConversionPreview(quantity: number, unitId: string): Promise<C
     quantity,
   })
 
-  // Walk down the conversion chain (parent → child)
   let currentId = unitId
   let currentQty = quantity
   let maxIterations = 20
@@ -172,7 +170,7 @@ async function getConversionPreview(quantity: number, unitId: string): Promise<C
   return steps
 }
 
-// ── Business Logic ────────────────────────────────────────────────
+
 
 async function getOrThrow(id: string): Promise<ConversionRow> {
   const conversion = await findById(id)
