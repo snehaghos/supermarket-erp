@@ -1,36 +1,41 @@
 import fs from 'fs'
 import path from 'path'
 import dotenv from 'dotenv'
-import { Pool } from 'pg'
+import Database from 'better-sqlite3'
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') })
 
-const connectionString = process.env.DATABASE_URL
+const dbPath = process.env.DB_PATH || path.resolve(__dirname, '../../data/inventory.db')
 
-const pool = connectionString
-  ? new Pool({ connectionString })
-  : new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: Number(process.env.DB_PORT) || 5432,
-      database: process.env.DB_NAME || 'supermarket_inventory',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
-    })
+const dbDir = path.dirname(dbPath)
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true })
+}
 
-async function migrate(): Promise<void> {
+const db = new Database(dbPath)
+db.pragma('journal_mode = WAL')
+db.pragma('foreign_keys = ON')
+
+export async function migrate(): Promise<void> {
   console.log('Running database migration...')
   const sqlPath = path.resolve(__dirname, 'schema.sql')
   const sql = fs.readFileSync(sqlPath, 'utf8')
 
   try {
-    await pool.query(sql)
+    db.exec(sql)
     console.log('Migration completed successfully')
   } catch (error) {
     console.error('Migration failed:', error)
-    process.exit(1)
-  } finally {
-    await pool.end()
+    throw error
   }
 }
 
-migrate()
+const isMainModule = process.argv[1] && (process.argv[1].includes('migrate') || process.argv[1].endsWith('migrate.ts'))
+if (isMainModule) {
+  migrate()
+    .then(() => {
+      db.close()
+      process.exit(0)
+    })
+    .catch(() => process.exit(1))
+}

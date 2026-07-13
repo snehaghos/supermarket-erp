@@ -8,12 +8,6 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
 
   db: {
-    // Use DATABASE_URL if provided, otherwise fall back to individual vars
-    databaseUrl: process.env.DATABASE_URL,
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 5432,
-    database: process.env.DB_NAME || 'supermarket_inventory',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
+    path: process.env.DB_PATH || path.resolve(__dirname, '../../data/inventory.db'),
   },
 } as const

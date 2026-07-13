@@ -18,17 +18,10 @@ export function errorHandler(
   _next: NextFunction
 ): void {
   if (err instanceof AppError) {
-    res.status(err.statusCode).json({
-      error: err.message,
-      code: err.code,
-    })
+    res.status(err.statusCode).json({ error: err.message, code: err.code })
     return
   }
 
   console.error('[ERROR] Unhandled error:', err)
-
-  res.status(500).json({
-    error: 'Internal server error',
-    code: 'INTERNAL_ERROR',
-  })
+  res.status(500).json({ error: 'Internal server error', code: 'INTERNAL_ERROR' })
 }

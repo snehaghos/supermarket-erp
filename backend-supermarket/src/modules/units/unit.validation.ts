@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const unitTypes = ['Packaging', 'Quantity', 'Weight', 'Volume', 'Length'] as const
+const unitTypes = ['Count', 'Weight', 'Volume', 'Length', 'Area', 'Packaging'] as const
 
 export type UnitType = (typeof unitTypes)[number]
 

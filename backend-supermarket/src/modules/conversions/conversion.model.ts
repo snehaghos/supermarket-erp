@@ -1,6 +1,3 @@
-// Model: Table structure definition only
-// All SQL query logic is in the controller
-
 export interface ConversionRow {
   id: string
   parentUnitId: string

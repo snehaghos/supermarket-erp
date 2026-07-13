@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
   Ruler, GitCompare, Package, ArrowRightLeft, ChevronRight,
-  Boxes, Weight, Droplets, Ruler as RulerIcon,
+  Boxes, Weight, Droplets, Ruler as RulerIcon, LayoutGrid,
 } from "lucide-react"
 import { unitsApi, conversionsApi } from "@/lib/api"
 import type { UnitRow, ConversionRow } from "@/lib/api"
@@ -33,11 +33,12 @@ export default function DashboardOverview() {
 
   const activeUnits = units.filter(u => u.status === 'active')
   const typeCounts = {
-    Packaging: units.filter(u => u.type === 'Packaging').length,
-    Quantity: units.filter(u => u.type === 'Quantity').length,
+    Count: units.filter(u => u.type === 'Count').length,
     Weight: units.filter(u => u.type === 'Weight').length,
     Volume: units.filter(u => u.type === 'Volume').length,
     Length: units.filter(u => u.type === 'Length').length,
+    Area: units.filter(u => u.type === 'Area').length,
+    Packaging: units.filter(u => u.type === 'Packaging').length,
   }
 
   const statCards = [
@@ -68,7 +69,7 @@ export default function DashboardOverview() {
     {
       label: 'Unit Types',
       value: Object.values(typeCounts).filter(c => c > 0).length,
-      sub: ['Packaging', 'Quantity', 'Weight', 'Volume', 'Length'].slice(0, Object.values(typeCounts).filter(c => c > 0).length).join(', '),
+      sub: ['Count', 'Weight', 'Volume', 'Length', 'Area', 'Packaging'].slice(0, Object.values(typeCounts).filter(c => c > 0).length).join(', '),
       icon: Boxes,
       color: 'text-amber-600',
       bg: 'bg-amber-50',
@@ -76,11 +77,12 @@ export default function DashboardOverview() {
   ]
 
   const typeIcons: Record<string, any> = {
-    Packaging: Package,
-    Quantity: Boxes,
+    Count: Boxes,
     Weight: Weight,
     Volume: Droplets,
     Length: RulerIcon,
+    Area: LayoutGrid,
+    Packaging: Package,
   }
 
   return (
@@ -127,7 +129,7 @@ export default function DashboardOverview() {
             <p className="text-sm text-muted-foreground text-center py-8">No units defined yet</p>
           ) : (
             <div className="space-y-2">
-              {(['Packaging', 'Quantity', 'Weight', 'Volume', 'Length'] as const).map(type => {
+              {(['Count', 'Weight', 'Volume', 'Length', 'Area', 'Packaging'] as const).map(type => {
                 const count = typeCounts[type]
                 const Icon = typeIcons[type]
                 const maxCount = Math.max(...Object.values(typeCounts), 1)

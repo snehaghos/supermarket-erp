@@ -19,7 +19,6 @@ export function validate(schema: ZodSchema, source: 'body' | 'query' | 'params' 
       return
     }
 
-    // Replace with parsed (and coerced) data
     if (source === 'body') {
       req.body = result.data
     } else if (source === 'query') {

@@ -5,6 +5,7 @@ import morgan from 'morgan'
 
 import { config } from './config'
 import { testConnection } from './db'
+import { migrate } from './db/migrate'
 import { errorHandler } from './middleware/errorHandler'
 
 import unitRoutes from './modules/units/unit.routes'
@@ -12,12 +13,10 @@ import conversionRoutes from './modules/conversions/conversion.routes'
 
 const app = express()
 
-// Middleware
 app.use(cors())
 app.use(express.json())
 app.use(morgan(config.nodeEnv === 'development' ? 'dev' : 'combined'))
 
-// Health check
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
@@ -26,17 +25,21 @@ app.get('/api/health', (_req, res) => {
   })
 })
 
-// API Routes
 app.use('/api/units', unitRoutes)
 app.use('/api/conversions', conversionRoutes)
 
-// Error handler
 app.use(errorHandler)
 
-// Start server
 async function start(): Promise<void> {
-  const dbConnected = await testConnection()
+  try {
+    await migrate()
+    console.log('[SERVER] Database migrated')
+  } catch (err) {
+    console.error('[SERVER] Migration failed:', err)
+    process.exit(1)
+  }
 
+  const dbConnected = await testConnection()
   if (!dbConnected) {
     console.error('[SERVER] Failed to connect to database. Exiting.')
     process.exit(1)
