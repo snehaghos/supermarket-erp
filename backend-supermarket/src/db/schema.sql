@@ -43,7 +43,10 @@ CREATE TABLE IF NOT EXISTS products (
   name VARCHAR(255) NOT NULL,
   category VARCHAR(100) NOT NULL DEFAULT 'General',
   sku VARCHAR(100) NOT NULL UNIQUE,
+  barcode VARCHAR(100) DEFAULT '',
+  brand VARCHAR(255) DEFAULT '',
   description TEXT DEFAULT '',
+  image_url TEXT DEFAULT '',
   
   -- The base unit: ALL inventory is stored in this unit
   base_unit_id TEXT NOT NULL REFERENCES units(id),
@@ -54,8 +57,18 @@ CREATE TABLE IF NOT EXISTS products (
   -- Default selling unit (must be convertible to base unit for this product)
   selling_unit_id TEXT REFERENCES units(id),
   
+  -- Pricing (stored in the purchase/selling units respectively)
+  purchase_price REAL NOT NULL DEFAULT 0 CHECK (purchase_price >= 0),
+  selling_price REAL NOT NULL DEFAULT 0 CHECK (selling_price >= 0),
+  
   -- Minimum stock level (in base unit) - triggers reorder alerts
   min_stock REAL NOT NULL DEFAULT 0 CHECK (min_stock >= 0),
+  
+  -- Maximum stock level (in base unit) - overstock warning
+  max_stock REAL NOT NULL DEFAULT 0 CHECK (max_stock >= 0),
+  
+  -- Reorder level (in base unit) - when to reorder
+  reorder_level REAL NOT NULL DEFAULT 0 CHECK (reorder_level >= 0),
   
   -- Opening stock (in base unit) - set once at product creation
   opening_stock REAL NOT NULL DEFAULT 0 CHECK (opening_stock >= 0),
@@ -104,19 +117,7 @@ CREATE TABLE IF NOT EXISTS product_units (
 CREATE INDEX IF NOT EXISTS idx_product_units_product ON product_units(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_units_unit ON product_units(unit_id);
 
--- ============================================================
--- INVENTORY (Current stock snapshot)
--- ============================================================
--- Mirrors products.current_stock for query convenience.
--- quantity is ALWAYS in the base unit.
-CREATE TABLE IF NOT EXISTS inventory (
-  id TEXT PRIMARY KEY,
-  product_id TEXT NOT NULL UNIQUE REFERENCES products(id) ON DELETE CASCADE,
-  quantity REAL NOT NULL DEFAULT 0 CHECK (quantity >= 0),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
 
-CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory(product_id);
 
 -- ============================================================
 -- INVENTORY TRANSACTIONS (Audit log)
@@ -219,6 +220,30 @@ CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS idx_sale_items_product ON sale_items(product_id);
 
 -- ============================================================
+-- PRODUCT-SPECIFIC CONVERSIONS
+-- ============================================================
+-- Allows overriding global conversion factors for a specific product.
+-- When computing factor_to_base for a product, these are checked first.
+-- Example: For a Rice product, 1 Bag = 50 Kg (product-specific),
+-- while globally 1 Bag is just a packaging unit with no default weight.
+CREATE TABLE IF NOT EXISTS product_conversions (
+  id TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  from_unit_id TEXT NOT NULL REFERENCES units(id),
+  to_unit_id TEXT NOT NULL REFERENCES units(id),
+  conversion_factor REAL NOT NULL CHECK (conversion_factor > 0),
+  relationship_text TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CONSTRAINT uq_product_conversion_pair UNIQUE (product_id, from_unit_id, to_unit_id),
+  CONSTRAINT ck_product_conv_diff CHECK (from_unit_id != to_unit_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_conversions_product ON product_conversions(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_conversions_from ON product_conversions(from_unit_id);
+CREATE INDEX IF NOT EXISTS idx_product_conversions_to ON product_conversions(to_unit_id);
+
+-- ============================================================
 -- INDEXES
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_conversions_parent ON conversions(parent_unit_id);
@@ -255,5 +280,34 @@ INSERT OR IGNORE INTO units (id, name, symbol, type, status) VALUES
   ('00000000-0000-0000-0000-000000000015', 'Milligram', 'MG', 'Weight', 'active'),
   ('00000000-0000-0000-0000-000000000016', 'Carton', 'CTN', 'Packaging', 'active'),
   ('00000000-0000-0000-0000-000000000017', 'Piece', 'PCE', 'Count', 'active');
+
+-- ============================================================
+-- SEED STANDARD CONVERSIONS
+-- ============================================================
+-- Weight chain: Tonne → Kilogram → Gram → Milligram
+INSERT OR IGNORE INTO conversions (id, parent_unit_id, child_unit_id, factor) VALUES
+  ('00000000-0000-0000-0000-00000a000001', '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000005', 1000),
+  ('00000000-0000-0000-0000-00000a000002', '00000000-0000-0000-0000-00000000000e', '00000000-0000-0000-0000-000000000004', 1000),
+  ('00000000-0000-0000-0000-00000a000003', '00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000015', 1000);
+
+-- Volume chain: Cubic Meter → Liter → Milliliter
+INSERT OR IGNORE INTO conversions (id, parent_unit_id, child_unit_id, factor) VALUES
+  ('00000000-0000-0000-0000-00000a000004', '00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000006', 1000),
+  ('00000000-0000-0000-0000-00000a000005', '00000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-00000000000f', 1000);
+
+-- Length chain: Meter → Centimeter
+INSERT OR IGNORE INTO conversions (id, parent_unit_id, child_unit_id, factor) VALUES
+  ('00000000-0000-0000-0000-00000a000006', '00000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000011', 100);
+
+-- Count chain: Dozen → Pieces, Set → Pieces
+INSERT OR IGNORE INTO conversions (id, parent_unit_id, child_unit_id, factor) VALUES
+  ('00000000-0000-0000-0000-00000a000007', '00000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-00000000000b', 12),
+  ('00000000-0000-0000-0000-00000a000008', '00000000-0000-0000-0000-00000000000d', '00000000-0000-0000-0000-00000000000b', 1);
+
+-- Packaging chain: Carton → Box → Strip → Tablet (for medicine)
+INSERT OR IGNORE INTO conversions (id, parent_unit_id, child_unit_id, factor) VALUES
+  ('00000000-0000-0000-0000-00000a000009', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 20),
+  ('00000000-0000-0000-0000-00000a00000a', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', 10),
+  ('00000000-0000-0000-0000-00000a00000b', '00000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000001', 12);
 
 

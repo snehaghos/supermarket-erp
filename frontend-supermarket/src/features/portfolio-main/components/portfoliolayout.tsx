@@ -5,9 +5,11 @@ import { Menu } from 'lucide-react'
 import DashboardOverview from './dashboard-overview'
 import { UnitsSection } from '@/features/units/components/units'
 import { ConversionsSection } from '@/features/conversions/components/conversions'
+import { ProductsSection } from '@/features/products/components/products'
 
 const NAV_ITEMS = [
   { id: 'DASHBOARD', label: 'Dashboard' },
+  { id: 'PRODUCTS', label: 'Products' },
   { id: 'UNITS', label: 'Units' },
   { id: 'CONVERSIONS', label: 'Conversions' },
 ]
@@ -108,6 +110,7 @@ export function PortfolioLayout() {
         {/* Content */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4 lg:p-6">
           {activeTab === 'DASHBOARD' && <DashboardOverview />}
+          {activeTab === 'PRODUCTS' && <ProductsSection />}
           {activeTab === 'UNITS' && <UnitsSection />}
           {activeTab === 'CONVERSIONS' && <ConversionsSection />}
         </main>

@@ -12,16 +12,16 @@ const MAX_CONVERSION_CHAIN_DEPTH = 20
 // ============================================================
 
 /**
- * Walk the conversion chain from `fromUnitId` until the chain ends,
- * multiplying factors along the way to compute how many base-equivalent
- * units are in 1 `fromUnitId`.
+ * Walk the conversion chain to find how many base units equal 1 `fromUnit`.
+ *
+ * Tries TWO directions:
+ *   1. Downward (parent→child): multiply by factor at each step
+ *   2. Upward (child→parent): divide by factor at each step
  *
  * Parent → Child chain:  1 parent = factor × child
- * So walking parent→child multiplies by factor each step.
- *
- * Example:
- *   Box → Strip (×20), Strip → Tablet (×10)
- *   resolveFactorToBase('Box', 'Tablet') => 200
+ *   e.g. Box → Strip (×20), Strip → Tablet (×10)
+ *   resolveFactorToBase('Box', 'Tablet')  => 200  (downward)
+ *   resolveFactorToBase('Strip', 'Box')   => 0.05 (upward via division: 1/20)
  */
 export async function resolveFactorToBase(
   fromUnitId: string,
@@ -44,29 +44,46 @@ export async function resolveFactorToBase(
     )
   }
 
-  let totalFactor = 1
-  let currentUnitId = fromUnitId
-  let stepsChecked = 0
-
-  while (stepsChecked < MAX_CONVERSION_CHAIN_DEPTH) {
-    stepsChecked++
-
-    // Found the base unit in the chain?
-    if (currentUnitId === baseUnitId) {
-      return totalFactor
+  // ── Try direction 1: walk parent→child (downward) ──────────
+  async function walkDownward(): Promise<number | null> {
+    let factor = 1
+    let current = fromUnitId
+    let steps = 0
+    while (steps < MAX_CONVERSION_CHAIN_DEPTH) {
+      steps++
+      if (current === baseUnitId) return factor
+      const conv = await conversionRepository.getByParentId(current)
+      if (!conv) return null
+      factor *= conv.factor
+      current = conv.childUnitId
     }
-
-    const conversion = await conversionRepository.getByParentId(currentUnitId)
-    if (!conversion) break
-
-    totalFactor *= conversion.factor
-    currentUnitId = conversion.childUnitId
+    return current === baseUnitId ? factor : null
   }
 
-  // If we exited because the chain ended, check if the last unit is the base unit
-  if (currentUnitId === baseUnitId) {
-    return totalFactor
+  const downward = await walkDownward()
+  if (downward !== null) return downward
+
+  // ── Try direction 2: walk child→parent (upward) ────────────
+  async function walkUpward(): Promise<number | null> {
+    let factor = 1
+    let current = fromUnitId
+    let steps = 0
+    while (steps < MAX_CONVERSION_CHAIN_DEPTH) {
+      steps++
+      if (current === baseUnitId) return factor
+      // Find a conversion where current unit is the CHILD
+      const conv = await conversionRepository.getByChildId(current)
+      if (!conv) return null
+      // Going upward: 1 child = (1/factor) parent
+      // So divide by factor at each step
+      factor /= conv.factor
+      current = conv.parentUnitId
+    }
+    return current === baseUnitId ? factor : null
   }
+
+  const upward = await walkUpward()
+  if (upward !== null) return upward
 
   throw new AppError(
     400,

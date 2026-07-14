@@ -87,3 +87,11 @@ export async function getByParentId(parentId: string): Promise<{ childUnitId: st
   if (!result.rows[0]) return null
   return { childUnitId: result.rows[0].child_unit_id, factor: Number(result.rows[0].factor) }
 }
+
+export async function getByChildId(childId: string): Promise<{ parentUnitId: string; factor: number } | null> {
+  const result = await query<{ parent_unit_id: string; factor: string }>(
+    'SELECT parent_unit_id, factor FROM conversions WHERE child_unit_id = ? LIMIT 1', [childId]
+  )
+  if (!result.rows[0]) return null
+  return { parentUnitId: result.rows[0].parent_unit_id, factor: Number(result.rows[0].factor) }
+}

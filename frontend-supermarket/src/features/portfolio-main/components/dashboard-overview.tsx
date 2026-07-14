@@ -3,27 +3,31 @@
 import { useState, useEffect, useCallback } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
-  Ruler, GitCompare, Package, ArrowRightLeft, ChevronRight,
+  Ruler, GitCompare, Package, ArrowRightLeft,
   Boxes, Weight, Droplets, Ruler as RulerIcon, LayoutGrid,
+  ShoppingBag, TrendingUp, AlertTriangle, BarChart3,
 } from "lucide-react"
-import { unitsApi, conversionsApi } from "@/lib/api"
-import type { UnitRow, ConversionRow } from "@/lib/api"
+import { unitsApi, conversionsApi, productsApi } from "@/lib/api"
+import type { UnitRow, ConversionRow, ProductWithRelations } from "@/lib/api"
 
 export default function DashboardOverview() {
   const navigate = useNavigate()
   const [units, setUnits] = useState<UnitRow[]>([])
   const [conversions, setConversions] = useState<ConversionRow[]>([])
+  const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [u, c] = await Promise.allSettled([
+      const [u, c, p] = await Promise.allSettled([
         unitsApi.getAll(),
         conversionsApi.getAll(),
+        productsApi.getAll(),
       ])
       if (u.status === 'fulfilled') setUnits(u.value)
       if (c.status === 'fulfilled') setConversions(c.value)
+      if (p.status === 'fulfilled') setProducts(p.value)
     } finally {
       setLoading(false)
     }
@@ -31,7 +35,11 @@ export default function DashboardOverview() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const activeUnits = units.filter(u => u.status === 'active')
+  const activeProducts = products.filter(p => p.status === 'active')
+  const lowStockProducts = products.filter(p => p.currentStock <= p.minStock && p.currentStock > 0)
+  const outOfStockProducts = products.filter(p => p.currentStock === 0)
+  const totalStockValue = products.reduce((sum, p) => sum + p.currentStock, 0)
+
   const typeCounts = {
     Count: units.filter(u => u.type === 'Count').length,
     Weight: units.filter(u => u.type === 'Weight').length,
@@ -43,12 +51,28 @@ export default function DashboardOverview() {
 
   const statCards = [
     {
-      label: 'Total Units',
-      value: units.length,
-      sub: `${activeUnits.length} active`,
-      icon: Ruler,
+      label: 'Products',
+      value: activeProducts.length,
+      sub: `${products.length} total`,
+      icon: Package,
       color: 'text-emerald-600',
       bg: 'bg-emerald-50',
+    },
+    {
+      label: 'Total Stock',
+      value: totalStockValue.toLocaleString(),
+      sub: 'in base units',
+      icon: TrendingUp,
+      color: 'text-blue-600',
+      bg: 'bg-blue-50',
+    },
+    {
+      label: 'Low Stock',
+      value: lowStockProducts.length,
+      sub: `${outOfStockProducts.length} out of stock`,
+      icon: AlertTriangle,
+      color: lowStockProducts.length > 0 ? 'text-amber-600' : 'text-emerald-600',
+      bg: lowStockProducts.length > 0 ? 'bg-amber-50' : 'bg-emerald-50',
     },
     {
       label: 'Conversions',
@@ -57,22 +81,6 @@ export default function DashboardOverview() {
       icon: ArrowRightLeft,
       color: 'text-violet-600',
       bg: 'bg-violet-50',
-    },
-    {
-      label: 'Max Chain Depth',
-      value: activeUnits.length > 0 ? Math.min(activeUnits.length - 1, 3) : 0,
-      sub: 'longest conversion chain',
-      icon: GitCompare,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
-    },
-    {
-      label: 'Unit Types',
-      value: Object.values(typeCounts).filter(c => c > 0).length,
-      sub: ['Count', 'Weight', 'Volume', 'Length', 'Area', 'Packaging'].slice(0, Object.values(typeCounts).filter(c => c > 0).length).join(', '),
-      icon: Boxes,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
     },
   ]
 
@@ -90,7 +98,7 @@ export default function DashboardOverview() {
       {/* Page Header */}
       <div>
         <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
-        <p className="text-sm text-muted-foreground mt-1">Supermarket inventory units &amp; conversion management</p>
+        <p className="text-sm text-muted-foreground mt-1">Supermarket inventory management system</p>
       </div>
 
       {/* Stats Grid */}
@@ -157,29 +165,35 @@ export default function DashboardOverview() {
           )}
         </div>
 
-        {/* Recent Conversions */}
+        {/* Low Stock Alerts */}
         <div className="bg-card border border-border rounded-xl p-5">
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-            <GitCompare className="w-4 h-4 text-violet-500" />
-            Recent Conversions
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            Stock Alerts
           </h3>
           {loading ? (
-            <div className="space-y-3">
-              {[1,2,3].map(i => <div key={i} className="h-12 bg-muted rounded animate-pulse" />)}
-            </div>
-          ) : conversions.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No conversions defined yet</p>
+            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-12 bg-muted rounded animate-pulse" />)}</div>
+          ) : products.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No products yet</p>
+          ) : lowStockProducts.length === 0 && outOfStockProducts.length === 0 ? (
+            <p className="text-sm text-emerald-600 text-center py-8 flex items-center justify-center gap-2">
+              <BarChart3 className="w-4 h-4" /> All products have sufficient stock
+            </p>
           ) : (
-            <div className="space-y-2">
-              {conversions.slice(0, 5).map(conv => (
-                <div key={conv.id} className="flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors">
-                  <span className="text-sm font-medium text-foreground">{conv.parentUnitName}</span>
-                  <span className="text-xs text-muted-foreground">({conv.parentUnitSymbol})</span>
-                  <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                  <span className="text-sm font-semibold text-emerald-600">×{conv.factor}</span>
-                  <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                  <span className="text-sm font-medium text-foreground">{conv.childUnitName}</span>
-                  <span className="text-xs text-muted-foreground">({conv.childUnitSymbol})</span>
+            <div className="space-y-1">
+              {[...outOfStockProducts, ...lowStockProducts].slice(0, 5).map(p => (
+                <div key={p.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${p.currentStock === 0 ? 'bg-red-500' : 'bg-amber-400'}`} />
+                    <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-xs font-semibold ${p.currentStock === 0 ? 'text-red-600' : 'text-amber-600'}`}>
+                      {p.currentStock} {p.baseUnitSymbol}
+                    </span>
+                    {p.currentStock === 0 && <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium">Out</span>}
+                    {p.currentStock > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">Low</span>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -190,7 +204,17 @@ export default function DashboardOverview() {
       {/* Quick Actions */}
       <div className="bg-card border border-border rounded-xl p-5">
         <h3 className="text-sm font-semibold text-foreground mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <button
+            onClick={() => navigate({ to: '/', search: { tab: 'PRODUCTS' } })}
+            className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-emerald-200 hover:bg-emerald-50/50 transition-all group text-left"
+          >
+            <Package className="w-5 h-5 text-emerald-500 group-hover:scale-110 transition-transform shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Manage Products</p>
+              <p className="text-xs text-muted-foreground">Create and manage inventory</p>
+            </div>
+          </button>
           <button
             onClick={() => navigate({ to: '/', search: { tab: 'UNITS' } })}
             className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-emerald-200 hover:bg-emerald-50/50 transition-all group text-left"
@@ -212,13 +236,13 @@ export default function DashboardOverview() {
             </div>
           </button>
           <button
-            onClick={() => navigate({ to: '/', search: { tab: 'CONVERSIONS' } })}
+            onClick={() => navigate({ to: '/', search: { tab: 'PRODUCTS' } })}
             className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-blue-200 hover:bg-blue-50/50 transition-all group text-left"
           >
-            <ArrowRightLeft className="w-5 h-5 text-blue-500 group-hover:scale-110 transition-transform shrink-0" />
+            <ShoppingBag className="w-5 h-5 text-blue-500 group-hover:scale-110 transition-transform shrink-0" />
             <div>
-              <p className="text-sm font-medium text-foreground">Preview Chain</p>
-              <p className="text-xs text-muted-foreground">Trace conversion chain down units</p>
+              <p className="text-sm font-medium text-foreground">Purchase / Sell</p>
+              <p className="text-xs text-muted-foreground">Buy stock or process sales</p>
             </div>
           </button>
         </div>
