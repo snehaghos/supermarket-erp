@@ -12,11 +12,21 @@ export interface ProductRow {
   sellingUnitId: string | null
   purchasePrice: number
   sellingPrice: number
+  mrp: number
+  taxClass: string
   minStock: number
   maxStock: number
   reorderLevel: number
   openingStock: number
   currentStock: number
+  trackBatch: boolean
+  trackExpiry: boolean
+  trackSerial: boolean
+  batchNumberFormat: string
+  manufacturingDateField: string
+  expiryDateField: string
+  serialFormat: string
+  serialValidation: string
   status: 'active' | 'inactive' | 'discontinued'
   createdAt: string
   updatedAt: string
@@ -31,6 +41,19 @@ export interface ProductWithRelations extends ProductRow {
   sellingUnitSymbol: string | null
   units: ProductUnitRow[]
   productConversions: ProductConversionRow[]
+  productImages: ProductImageRow[]
+}
+
+export interface ProductImageRow {
+  id: string
+  productId: string
+  imagePath: string
+  originalName: string
+  mimeType: string
+  fileSize: number
+  isPrimary: boolean
+  sortOrder: number
+  createdAt: string
 }
 
 export interface ProductUnitRow {

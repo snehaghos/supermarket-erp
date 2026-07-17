@@ -5,6 +5,7 @@ import type {
   ProductWithRelations,
   ProductUnitRow,
   ProductConversionRow,
+  ProductImageRow,
   InventoryTransactionRow,
   PurchaseRow,
   PurchaseItemRow,
@@ -36,10 +37,20 @@ function toProductRow(row: Record<string, unknown>): ProductRow {
     sellingUnitId: row.selling_unit_id as string | null,
     purchasePrice: Number(row.purchase_price ?? 0),
     sellingPrice: Number(row.selling_price ?? 0),
+    mrp: Number(row.mrp ?? 0),
+    taxClass: (row.tax_class as string) ?? '',
     minStock: Number(row.min_stock),
     maxStock: Number(row.max_stock ?? 0),
     reorderLevel: Number(row.reorder_level ?? 0),
     openingStock: Number(row.opening_stock),
+    trackBatch: Boolean(row.track_batch),
+    trackExpiry: Boolean(row.track_expiry),
+    trackSerial: Boolean(row.track_serial),
+    batchNumberFormat: (row.batch_number_format as string) ?? '',
+    manufacturingDateField: (row.manufacturing_date_field as string) ?? '',
+    expiryDateField: (row.expiry_date_field as string) ?? '',
+    serialFormat: (row.serial_format as string) ?? '',
+    serialValidation: (row.serial_validation as string) ?? '',
     currentStock: Number(row.current_stock),
     status: row.status as ProductRow['status'],
     createdAt: row.created_at as string,
@@ -58,6 +69,7 @@ function toProductWithRelations(row: Record<string, unknown>): ProductWithRelati
     sellingUnitSymbol: row.selling_unit_symbol as string | null,
     units: [],
     productConversions: [],
+    productImages: [],
   }
 }
 
@@ -135,6 +147,7 @@ export async function getAllProducts(): Promise<ProductWithRelations[]> {
   for (const product of products) {
     product.units = await getProductUnits(product.id)
     product.productConversions = await getProductConversions(product.id)
+    product.productImages = await getProductImages(product.id)
   }
   return products
 }
@@ -148,6 +161,7 @@ export async function getProductById(id: string): Promise<ProductWithRelations |
   const product = toProductWithRelations(result.rows[0])
   product.units = await getProductUnits(id)
   product.productConversions = await getProductConversions(id)
+  product.productImages = await getProductImages(id)
   return product
 }
 
@@ -163,13 +177,14 @@ export async function createProduct(
   input: CreateProductInput,
   openingStockBase: number,
   additionalUnitEntries: { unitId: string; factorToBase: number; isPurchaseUnit: boolean; isSellingUnit: boolean }[],
-  productConversionEntries: { fromUnitId: string; toUnitId: string; conversionFactor: number }[]
+  productConversionEntries: { fromUnitId: string; toUnitId: string; conversionFactor: number }[],
+  imageEntries?: { imagePath: string; originalName: string }[]
 ): Promise<ProductWithRelations> {
   const id = crypto.randomUUID()
 
   const result = await query<Record<string, unknown>>(
-    `INSERT INTO products (id, name, category, sku, barcode, brand, description, image_url, base_unit_id, purchase_unit_id, selling_unit_id, purchase_price, selling_price, min_stock, max_stock, reorder_level, opening_stock, current_stock)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+    `INSERT INTO products (id, name, category, sku, barcode, brand, description, image_url, base_unit_id, purchase_unit_id, selling_unit_id, purchase_price, selling_price, mrp, tax_class, min_stock, max_stock, reorder_level, track_batch, track_expiry, track_serial, batch_number_format, manufacturing_date_field, expiry_date_field, serial_format, serial_validation, opening_stock, current_stock)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
     [
       id, input.name, input.category, input.sku,
       input.barcode ?? '', input.brand ?? '', input.description ?? '', input.imageUrl ?? '',
@@ -178,9 +193,19 @@ export async function createProduct(
       input.sellingUnitId ?? null,
       input.purchasePrice ?? 0,
       input.sellingPrice ?? 0,
+      input.mrp ?? 0,
+      input.taxClass ?? '',
       input.minStock,
       input.maxStock ?? 0,
       input.reorderLevel ?? 0,
+      input.trackBatch ? 1 : 0,
+      input.trackExpiry ? 1 : 0,
+      input.trackSerialNumber ? 1 : 0,
+      input.batchNumberFormat ?? '',
+      input.manufacturingDateField ?? '',
+      input.expiryDateField ?? '',
+      input.serialNumberFormat ?? '',
+      input.serialNumberValidation ?? '',
       openingStockBase,
       openingStockBase,
     ]
@@ -191,6 +216,19 @@ export async function createProduct(
 
   // Create product-specific conversions
   await saveProductConversions(id, productConversionEntries)
+
+  // Save product images
+  if (imageEntries && imageEntries.length > 0) {
+    for (let i = 0; i < imageEntries.length; i++) {
+      const entry = imageEntries[i]!
+      const imgId = crypto.randomUUID()
+      await run(
+        `INSERT INTO product_images (id, product_id, image_path, original_name, mime_type, file_size, is_primary, sort_order)
+         VALUES (?, ?, ?, ?, '', 0, ?, ?)`,
+        [imgId, id, entry.imagePath, entry.originalName, i === 0 ? 1 : 0, i]
+      )
+    }
+  }
 
   // Record opening stock transaction
   if (openingStockBase > 0) {
@@ -204,7 +242,7 @@ export async function createProduct(
   return (await getProductById(id))!
 }
 
-async function saveProductUnits(
+export async function saveProductUnits(
   productId: string,
   baseUnitId: string,
   additionalEntries: { unitId: string; factorToBase: number; isPurchaseUnit: boolean; isSellingUnit: boolean }[]
@@ -236,7 +274,7 @@ async function saveProductUnits(
   }
 }
 
-async function saveProductConversions(
+export async function saveProductConversions(
   productId: string,
   entries: { fromUnitId: string; toUnitId: string; conversionFactor: number; relationshipText?: string }[]
 ): Promise<void> {
@@ -275,10 +313,20 @@ export async function updateProduct(
   if (input.sellingUnitId !== undefined) { fields.push('selling_unit_id = ?'); values.push(input.sellingUnitId) }
   if (input.purchasePrice !== undefined) { fields.push('purchase_price = ?'); values.push(input.purchasePrice) }
   if (input.sellingPrice !== undefined) { fields.push('selling_price = ?'); values.push(input.sellingPrice) }
+  if (input.mrp !== undefined) { fields.push('mrp = ?'); values.push(input.mrp) }
+  if (input.taxClass !== undefined) { fields.push('tax_class = ?'); values.push(input.taxClass) }
   if (input.minStock !== undefined) { fields.push('min_stock = ?'); values.push(input.minStock) }
   if (input.maxStock !== undefined) { fields.push('max_stock = ?'); values.push(input.maxStock) }
   if (input.reorderLevel !== undefined) { fields.push('reorder_level = ?'); values.push(input.reorderLevel) }
   if (input.status !== undefined) { fields.push('status = ?'); values.push(input.status) }
+  if (input.trackBatch !== undefined) { fields.push('track_batch = ?'); values.push(input.trackBatch ? 1 : 0) }
+  if (input.trackExpiry !== undefined) { fields.push('track_expiry = ?'); values.push(input.trackExpiry ? 1 : 0) }
+  if (input.trackSerialNumber !== undefined) { fields.push('track_serial = ?'); values.push(input.trackSerialNumber ? 1 : 0) }
+  if (input.batchNumberFormat !== undefined) { fields.push('batch_number_format = ?'); values.push(input.batchNumberFormat) }
+  if (input.serialNumberFormat !== undefined) { fields.push('serial_format = ?'); values.push(input.serialNumberFormat) }
+  if (input.serialNumberValidation !== undefined) { fields.push('serial_validation = ?'); values.push(input.serialNumberValidation) }
+  if (input.manufacturingDateField !== undefined) { fields.push('manufacturing_date_field = ?'); values.push(input.manufacturingDateField) }
+  if (input.expiryDateField !== undefined) { fields.push('expiry_date_field = ?'); values.push(input.expiryDateField) }
 
   if (fields.length === 0) return getProductById(id)
 
@@ -286,6 +334,23 @@ export async function updateProduct(
   values.push(id)
 
   await run(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`, values)
+
+  // Handle product images update
+  if (input.productImages !== undefined) {
+    // Delete existing images
+    await deleteAllProductImages(id)
+    // Re-insert new images
+    for (let i = 0; i < input.productImages.length; i++) {
+      const path = input.productImages[i]!
+      const originalName = path.split('/').pop() ?? ''
+      await run(
+        `INSERT INTO product_images (id, product_id, image_path, original_name, mime_type, file_size, is_primary, sort_order)
+         VALUES (?, ?, ?, ?, '', 0, ?, ?)`,
+        [crypto.randomUUID(), id, path, originalName, i === 0 ? 1 : 0, i]
+      )
+    }
+  }
+
   return getProductById(id)
 }
 
@@ -388,6 +453,65 @@ export async function updateProductConversion(
 export async function deleteProductConversion(id: string): Promise<boolean> {
   const result = await run('DELETE FROM product_conversions WHERE id = ?', [id])
   return result.changes > 0
+}
+
+export async function deleteAllProductConversions(productId: string): Promise<void> {
+  await run('DELETE FROM product_conversions WHERE product_id = ?', [productId])
+}
+
+// ── Product Images ────────────────────────────────────────────────
+
+export async function getProductImages(productId: string): Promise<ProductImageRow[]> {
+  const result = await query<Record<string, unknown>>(
+    `SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, created_at ASC`,
+    [productId]
+  )
+  return result.rows.map(toProductImageRow)
+}
+
+function toProductImageRow(row: Record<string, unknown>): ProductImageRow {
+  return {
+    id: row.id as string,
+    productId: row.product_id as string,
+    imagePath: row.image_path as string,
+    originalName: (row.original_name as string) ?? '',
+    mimeType: (row.mime_type as string) ?? '',
+    fileSize: Number(row.file_size ?? 0),
+    isPrimary: Boolean(row.is_primary),
+    sortOrder: Number(row.sort_order ?? 0),
+    createdAt: row.created_at as string,
+  }
+}
+
+export async function saveProductImage(params: {
+  productId: string
+  imagePath: string
+  originalName: string
+  mimeType: string
+  fileSize: number
+  isPrimary: boolean
+  sortOrder: number
+}): Promise<ProductImageRow> {
+  const id = crypto.randomUUID()
+  await run(
+    `INSERT INTO product_images (id, product_id, image_path, original_name, mime_type, file_size, is_primary, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, params.productId, params.imagePath, params.originalName, params.mimeType, params.fileSize, params.isPrimary ? 1 : 0, params.sortOrder]
+  )
+  const result = await query<Record<string, unknown>>(
+    'SELECT * FROM product_images WHERE id = ?',
+    [id]
+  )
+  return toProductImageRow(result.rows[0]!)
+}
+
+export async function deleteProductImage(id: string): Promise<boolean> {
+  const result = await run('DELETE FROM product_images WHERE id = ?', [id])
+  return result.changes > 0
+}
+
+export async function deleteAllProductImages(productId: string): Promise<void> {
+  await run('DELETE FROM product_images WHERE product_id = ?', [productId])
 }
 
 // ── Inventory ────────────────────────────────────────────────────

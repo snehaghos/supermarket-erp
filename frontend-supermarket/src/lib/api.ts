@@ -1,14 +1,92 @@
 const API_BASE = '/api'
 
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.error || `HTTP ${response.status}: ${response.statusText}`)
+// ── Structured API Error ──────────────────────────────────────────
+
+export interface ValidationDetail {
+  field: string
+  message: string
+}
+
+export class ApiError extends Error {
+  public readonly code: string
+  public readonly status: number
+  public readonly details: ValidationDetail[]
+  public readonly timestamp: string
+
+  constructor(response: {
+    error?: string
+    code?: string
+    status?: number
+    details?: ValidationDetail[]
+    timestamp?: string
+  }, httpStatus: number) {
+    super(response.error || `Request failed (HTTP ${httpStatus})`)
+    this.name = 'ApiError'
+    this.code = response.code || 'UNKNOWN_ERROR'
+    this.status = response.status || httpStatus
+    this.details = response.details || []
+    this.timestamp = response.timestamp || new Date().toISOString()
   }
+
+  /** Returns a user-friendly summary of the error */
+  get userMessage(): string {
+    if (this.code === 'VALIDATION_ERROR' && this.details.length > 0) {
+      const fieldNames = this.details.map(d => {
+        const label = d.field.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())
+        return `${label}: ${d.message}`
+      })
+      return fieldNames.join('; ')
+    }
+
+    switch (this.code) {
+      case 'VALIDATION_ERROR':
+        return 'Please check your input and try again'
+      case 'NOT_FOUND':
+        return 'The requested item was not found'
+      case 'DUPLICATE_ENTRY':
+      case 'DUPLICATE_SKU':
+      case 'DUPLICATE_UNIT_NAME':
+      case 'DUPLICATE_CONVERSION':
+        return 'An item with this information already exists'
+      case 'INSUFFICIENT_STOCK':
+        return 'Not enough stock available'
+      case 'CIRCULAR_CONVERSION_CHAIN':
+        return 'This conversion would create a circular chain'
+      case 'SAME_UNIT':
+        return 'Parent and child units must be different'
+      case 'UNIT_NOT_AVAILABLE':
+        return 'This unit is not available for this product'
+      case 'INTERNAL_ERROR':
+        return 'Something went wrong. Please try again.'
+      default:
+        return this.message
+    }
+  }
+
+  /** Machine-readable error type for categorization */
+  get type(): 'validation' | 'not_found' | 'conflict' | 'auth' | 'server' | 'network' | 'unknown' {
+    if (this.code === 'VALIDATION_ERROR') return 'validation'
+    if (this.code === 'NOT_FOUND') return 'not_found'
+    if (this.code.startsWith('DUPLICATE')) return 'conflict'
+    if (this.status === 401 || this.status === 403) return 'auth'
+    if (this.status >= 500) return 'server'
+    if (this.status === 0) return 'network'
+    return 'unknown'
+  }
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
+  const body = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new ApiError(body, response.status)
+  }
+
   if (response.status === 204) {
     return undefined as T
   }
-  return response.json()
+
+  return body as T
 }
 
 function getAuthHeaders(): HeadersInit {
@@ -129,11 +207,21 @@ export interface ProductWithRelations {
   sellingUnitId: string | null
   purchasePrice: number
   sellingPrice: number
+  mrp: number
+  taxClass: string
   minStock: number
   maxStock: number
   reorderLevel: number
   openingStock: number
   currentStock: number
+  trackBatch: boolean
+  trackExpiry: boolean
+  trackSerial: boolean
+  batchNumberFormat: string
+  manufacturingDateField: string
+  expiryDateField: string
+  serialFormat: string
+  serialValidation: string
   status: 'active' | 'inactive' | 'discontinued'
   createdAt: string
   updatedAt: string
@@ -145,6 +233,7 @@ export interface ProductWithRelations {
   sellingUnitSymbol: string | null
   units: ProductUnitRow[]
   productConversions: ProductConversionRow[]
+  productImages: ProductImageRow[]
 }
 
 export interface ProductUnitRow {
@@ -158,6 +247,18 @@ export interface ProductUnitRow {
   isPurchaseUnit: boolean
   isSellingUnit: boolean
   isActive: boolean
+  createdAt: string
+}
+
+export interface ProductImageRow {
+  id: string
+  productId: string
+  imagePath: string
+  originalName: string
+  mimeType: string
+  fileSize: number
+  isPrimary: boolean
+  sortOrder: number
   createdAt: string
 }
 
@@ -192,7 +293,13 @@ export interface CreateProductInput {
   minStock: number
   maxStock?: number
   reorderLevel?: number
-  openingStock: number
+  openingStock?: number
+  trackBatch?: boolean
+  trackExpiry?: boolean
+  trackSerialNumber?: boolean
+  mrp?: number
+  taxClass?: string
+  status?: 'active' | 'inactive' | 'discontinued'
   additionalUnits: { unitId: string; isPurchaseUnit: boolean; isSellingUnit: boolean }[]
   productConversions?: { fromUnitId: string; toUnitId: string; conversionFactor: number }[]
 }
@@ -210,9 +317,17 @@ export interface UpdateProductInput {
   sellingUnitId?: string | null
   purchasePrice?: number
   sellingPrice?: number
+  mrp?: number
+  taxClass?: string
   minStock?: number
   maxStock?: number
   reorderLevel?: number
+  trackBatch?: boolean
+  trackExpiry?: boolean
+  trackSerialNumber?: boolean
+  additionalUnits?: { unitId: string; isPurchaseUnit: boolean; isSellingUnit: boolean }[]
+  productConversions?: { fromUnitId: string; toUnitId: string; conversionFactor: number }[]
+  productImages?: string[]
   status?: 'active' | 'inactive' | 'discontinued'
 }
 
@@ -347,8 +462,124 @@ export const productsApi = {
   deleteProductConversion: (id: string) => del(`/products/conversions/${id}`),
 }
 
+// ──── Supplier Types ───────────────────────────────────────────────
+
+export interface SupplierRow {
+  id: string
+  name: string
+  gst: string
+  contactPerson: string
+  email: string
+  phone: string
+  address: string
+  city: string
+  state: string
+  pincode: string
+  creditLimit: number
+  paymentTerms: string
+  outstandingBalance: number
+  status: 'active' | 'inactive'
+  totalPurchases: number
+  lastPurchaseDate: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateSupplierInput {
+  name: string
+  gst?: string
+  contactPerson?: string
+  email?: string
+  phone?: string
+  address?: string
+  city?: string
+  state?: string
+  pincode?: string
+  creditLimit?: number
+  paymentTerms?: string
+}
+
+export interface UpdateSupplierInput {
+  name?: string
+  gst?: string
+  contactPerson?: string
+  email?: string
+  phone?: string
+  address?: string
+  city?: string
+  state?: string
+  pincode?: string
+  creditLimit?: number
+  paymentTerms?: string
+  status?: 'active' | 'inactive'
+}
+
+// ──── Customer Types ───────────────────────────────────────────────
+
+export interface CustomerRow {
+  id: string
+  name: string
+  email: string
+  phone: string
+  address: string
+  city: string
+  state: string
+  pincode: string
+  loyaltyPoints: number
+  creditLimit: number
+  outstandingBalance: number
+  status: 'active' | 'inactive'
+  totalPurchases: number
+  lastPurchaseDate: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateCustomerInput {
+  name: string
+  email?: string
+  phone?: string
+  address?: string
+  city?: string
+  state?: string
+  pincode?: string
+  creditLimit?: number
+}
+
+export interface UpdateCustomerInput {
+  name?: string
+  email?: string
+  phone?: string
+  address?: string
+  city?: string
+  state?: string
+  pincode?: string
+  creditLimit?: number
+  status?: 'active' | 'inactive'
+}
+
 // ──── Health API ────────────────────────────────────────────────────
 
 export const healthApi = {
   check: () => get<HealthCheck>('/health'),
+}
+
+// ──── Suppliers API ────────────────────────────────────────────────
+
+export const suppliersApi = {
+  getAll: () => get<SupplierRow[]>('/suppliers'),
+  getById: (id: string) => get<SupplierRow>(`/suppliers/${id}`),
+  create: (input: CreateSupplierInput) => post<SupplierRow>('/suppliers', input),
+  update: (id: string, input: UpdateSupplierInput) => patch<SupplierRow>(`/suppliers/${id}`, input),
+  delete: (id: string) => del(`/suppliers/${id}`),
+}
+
+// ──── Customers API ────────────────────────────────────────────────
+
+export const customersApi = {
+  getAll: () => get<CustomerRow[]>('/customers'),
+  getById: (id: string) => get<CustomerRow>(`/customers/${id}`),
+  create: (input: CreateCustomerInput) => post<CustomerRow>('/customers', input),
+  update: (id: string, input: UpdateCustomerInput) => patch<CustomerRow>(`/customers/${id}`, input),
+  delete: (id: string) => del(`/customers/${id}`),
 }

@@ -1,4 +1,4 @@
-import { Edit2, Trash2, Loader2, Package, AlertTriangle, ShoppingCart, TrendingDown, Eye } from "lucide-react"
+import { Edit2, Trash2, Loader2, Package, AlertTriangle, Eye } from "lucide-react"
 import type { ProductWithRelations } from "@/lib/api"
 import type { DisplayStock } from "@/lib/api"
 
@@ -15,9 +15,7 @@ interface ProductTableProps {
   deletingId: string | null
   onEdit: (product: ProductWithRelations) => void
   onDelete: (id: string) => void
-  onPurchase: (product: ProductWithRelations) => void
-  onSell: (product: ProductWithRelations) => void
-  onViewStock: (product: ProductWithRelations) => void
+  onViewDetails: (product: ProductWithRelations) => void
 }
 
 interface ProductWithResults extends ProductWithRelations {
@@ -26,7 +24,7 @@ interface ProductWithResults extends ProductWithRelations {
 
 export function ProductTable({
   products, loading, search, deletingId,
-  onEdit, onDelete, onPurchase, onSell, onViewStock,
+  onEdit, onDelete, onViewDetails,
 }: ProductTableProps) {
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -66,17 +64,22 @@ export function ProductTable({
             {filtered.map(product => (
               <tr key={product.id} className={product.currentStock <= product.minStock && product.currentStock > 0 ? 'bg-amber-50/50' : ''}>
                 <td>
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                  <button
+                    onClick={() => onViewDetails(product)}
+                    className="flex items-center gap-2.5 text-left group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-xs font-bold shadow-sm group-hover:shadow-md transition-shadow">
                       {product.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <p className="font-medium text-foreground text-sm">{product.name}</p>
+                      <p className="font-medium text-foreground text-sm group-hover:text-emerald-700 transition-colors">
+                        {product.name}
+                      </p>
                       {product.description && (
                         <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{product.description}</p>
                       )}
                     </div>
-                  </div>
+                  </button>
                 </td>
                 <td>
                   <code className="px-2 py-0.5 bg-muted rounded text-xs font-mono text-foreground">{product.sku}</code>
@@ -116,14 +119,12 @@ export function ProductTable({
                 </td>
                 <td className="text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <button onClick={() => onViewStock(product)} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 transition-colors" title="View Stock">
+                    <button
+                      onClick={() => onViewDetails(product)}
+                      className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 transition-colors"
+                      title="View Details"
+                    >
                       <Eye className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => onPurchase(product)} className="p-1.5 rounded-md hover:bg-emerald-50 text-emerald-600 transition-colors" title="Purchase Stock">
-                      <ShoppingCart className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => onSell(product)} className="p-1.5 rounded-md hover:bg-orange-50 text-orange-600 transition-colors" title="Sell Stock">
-                      <TrendingDown className="w-4 h-4" />
                     </button>
                     <button onClick={() => onEdit(product)} className="p-1.5 rounded-md hover:bg-blue-50 text-blue-600 transition-colors" title="Edit">
                       <Edit2 className="w-4 h-4" />

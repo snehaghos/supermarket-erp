@@ -2,6 +2,7 @@ import { AppError } from '../middleware/errorHandler'
 import * as productRepository from '../repositories/product.repository'
 import * as unitRepository from '../repositories/unit.repository'
 import * as conversionService from './conversion.service'
+import { run } from '../db'
 import type { ProductWithRelations, ProductConversionRow } from '../modules/products/product.model'
 import type {
   CreateProductInput,
@@ -170,7 +171,19 @@ export async function create(input: CreateProductInput): Promise<ProductWithRela
     openingStockBase = input.openingStock * factor
   }
 
-  return productRepository.createProduct(input, openingStockBase, additionalEntries, productConversionEntries)
+  // Prepare image entries for storage
+  const imageEntries = (input.productImages ?? []).map((path, i) => ({
+    imagePath: path,
+    originalName: path.split('/').pop() ?? '',
+  }))
+
+  return productRepository.createProduct(
+    input,
+    openingStockBase,
+    additionalEntries,
+    productConversionEntries,
+    imageEntries.length > 0 ? imageEntries : undefined
+  )
 }
 
 export async function update(id: string, input: UpdateProductInput): Promise<ProductWithRelations> {
@@ -180,11 +193,110 @@ export async function update(id: string, input: UpdateProductInput): Promise<Pro
     await ensureUniqueSku(input.sku, id)
   }
 
+  // Save the basic product fields
   const updated = await productRepository.updateProduct(id, input)
   if (!updated) {
     throw new AppError(500, 'Failed to update product', 'UPDATE_FAILED')
   }
-  return updated
+
+  // ── Handle product-specific conversions ─────────────────────
+  if (input.productConversions !== undefined) {
+    // Build conversion entries with human-readable relationship text
+    const conversionEntries: {
+      fromUnitId: string
+      toUnitId: string
+      conversionFactor: number
+      relationshipText: string
+    }[] = []
+
+    for (const c of input.productConversions) {
+      const fromUnit = await unitRepository.getById(c.fromUnitId)
+      const toUnit = await unitRepository.getById(c.toUnitId)
+      if (!fromUnit || !toUnit) continue
+
+      const fromName = fromUnit.name
+      const toName = toUnit.name
+      const relationshipText = `1 ${toName} = ${c.conversionFactor} ${fromName}`
+      conversionEntries.push({
+        fromUnitId: c.fromUnitId,
+        toUnitId: c.toUnitId,
+        conversionFactor: c.conversionFactor,
+        relationshipText,
+      })
+    }
+
+    // Delete existing and re-insert
+    await productRepository.deleteAllProductConversions(id)
+    if (conversionEntries.length > 0) {
+      await productRepository.saveProductConversions(id, conversionEntries)
+    }
+  }
+
+  // ── Handle additional units ─────────────────────────────────
+  const effectiveBaseUnitId = input.baseUnitId ?? existing.baseUnitId
+  const effectivePurchaseUnitId = input.purchaseUnitId !== undefined ? input.purchaseUnitId : existing.purchaseUnitId
+  const effectiveSellingUnitId = input.sellingUnitId !== undefined ? input.sellingUnitId : existing.sellingUnitId
+
+  if (input.additionalUnits !== undefined || input.baseUnitId !== undefined ||
+      input.purchaseUnitId !== undefined || input.sellingUnitId !== undefined) {
+
+    // Build the set of product conversion entries (use new ones if provided, else existing)
+    const productConversionEntries = input.productConversions ??
+      existing.productConversions.map(c => ({
+        fromUnitId: c.fromUnitId,
+        toUnitId: c.toUnitId,
+        conversionFactor: c.conversionFactor,
+      }))
+
+    const additionalEntries: { unitId: string; factorToBase: number; isPurchaseUnit: boolean; isSellingUnit: boolean }[] = []
+
+    // Process explicit additional units
+    const unitsToProcess = input.additionalUnits ??
+      existing.units.filter(u => u.unitId !== effectiveBaseUnitId).map(u => ({
+        unitId: u.unitId,
+        isPurchaseUnit: u.isPurchaseUnit,
+        isSellingUnit: u.isSellingUnit,
+      }))
+
+    for (const au of unitsToProcess) {
+      if (au.unitId === effectiveBaseUnitId) continue
+      const factorToBase = await resolveProductFactorToBase(au.unitId, effectiveBaseUnitId, productConversionEntries)
+      additionalEntries.push({
+        unitId: au.unitId,
+        factorToBase,
+        isPurchaseUnit: au.isPurchaseUnit,
+        isSellingUnit: au.isSellingUnit,
+      })
+    }
+
+    // Add purchase unit if not already included
+    if (effectivePurchaseUnitId && !additionalEntries.some(e => e.unitId === effectivePurchaseUnitId)) {
+      const factorToBase = await resolveProductFactorToBase(effectivePurchaseUnitId, effectiveBaseUnitId, productConversionEntries)
+      additionalEntries.push({
+        unitId: effectivePurchaseUnitId,
+        factorToBase,
+        isPurchaseUnit: true,
+        isSellingUnit: false,
+      })
+    }
+
+    // Add selling unit if not already included
+    if (effectiveSellingUnitId && !additionalEntries.some(e => e.unitId === effectiveSellingUnitId)) {
+      const factorToBase = await resolveProductFactorToBase(effectiveSellingUnitId, effectiveBaseUnitId, productConversionEntries)
+      additionalEntries.push({
+        unitId: effectiveSellingUnitId,
+        factorToBase,
+        isPurchaseUnit: false,
+        isSellingUnit: true,
+      })
+    }
+
+    // Save product units: delete existing and re-insert
+    await run('DELETE FROM product_units WHERE product_id = ?', [id])
+    await productRepository.saveProductUnits(id, effectiveBaseUnitId, additionalEntries)
+  }
+
+  return (await productRepository.getProductById(id))!
 }
 
 export async function remove(id: string): Promise<void> {

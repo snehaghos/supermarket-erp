@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Plus, RefreshCw, Save, X, AlertTriangle, Search } from "lucide-react"
+import { Plus, RefreshCw, Search } from "lucide-react"
 import {
   conversionsApi, unitsApi,
   type ConversionRow, type CreateConversionInput, type UpdateConversionInput,
   type UnitRow,
 } from "@/lib/api"
+import { showSuccess, showApiError } from "@/lib/errors"
 import { ConversionForm } from "./conversion-form"
 import { ConversionPreview } from "./conversion-preview"
 import { ConversionTable } from "./conversion-table"
@@ -17,18 +18,15 @@ export function ConversionsSection() {
   const [conversions, setConversions] = useState<ConversionRow[]>([])
   const [units, setUnits] = useState<UnitRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<CreateConversionInput>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    setError(null)
     try {
       const [convData, unitsData] = await Promise.all([
         conversionsApi.getAll(),
@@ -37,18 +35,13 @@ export function ConversionsSection() {
       setConversions(convData)
       setUnits(unitsData)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch data')
+      showApiError(err)
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
-
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3000)
-  }
 
   const resetForm = () => { setForm(emptyForm); setEditingId(null); setShowForm(false) }
 
@@ -67,15 +60,15 @@ export function ConversionsSection() {
         if (form.childUnitId) input.childUnitId = form.childUnitId
         if (form.factor) input.factor = form.factor
         await conversionsApi.update(editingId, input)
-        showSuccess('Conversion updated successfully')
+        showSuccess('Conversion updated', 'The unit relationship has been saved.')
       } else {
         await conversionsApi.create(form)
-        showSuccess('Conversion created successfully')
+        showSuccess('Conversion created', 'A new unit relationship has been defined.')
       }
       resetForm()
       await fetchData()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save conversion')
+      showApiError(err)
     } finally {
       setSaving(false)
     }
@@ -85,10 +78,10 @@ export function ConversionsSection() {
     setDeletingId(id)
     try {
       await conversionsApi.delete(id)
-      showSuccess('Conversion deleted')
+      showSuccess('Conversion deleted', 'The unit relationship has been removed.')
       await fetchData()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete conversion')
+      showApiError(err)
     } finally {
       setDeletingId(null)
     }
@@ -112,19 +105,6 @@ export function ConversionsSection() {
           </button>
         </div>
       </div>
-
-      {successMsg && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <Save className="w-4 h-4 shrink-0" /> {successMsg}
-          <button onClick={() => setSuccessMsg(null)} className="ml-auto"><X className="w-4 h-4" /></button>
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
-          <button onClick={() => setError(null)} className="ml-auto"><X className="w-4 h-4" /></button>
-        </div>
-      )}
 
       {showForm && (
         <ConversionForm

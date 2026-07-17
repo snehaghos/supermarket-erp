@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Plus, RefreshCw, Save, X, AlertTriangle, Search } from "lucide-react"
+import { Plus, RefreshCw, Search } from "lucide-react"
 import { unitsApi, type UnitRow, type CreateUnitInput, type UpdateUnitInput } from "@/lib/api"
+import { showSuccess, showApiError } from "@/lib/errors"
 import { UnitForm } from "./unit-form"
 import { UnitTable } from "./unit-table"
 
@@ -11,34 +12,26 @@ const emptyForm: CreateUnitInput = { name: '', symbol: '', type: 'Count' }
 export function UnitsSection() {
   const [units, setUnits] = useState<UnitRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<CreateUnitInput>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   const fetchUnits = useCallback(async () => {
     setLoading(true)
-    setError(null)
     try {
       const data = await unitsApi.getAll()
       setUnits(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch units')
+      showApiError(err)
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => { fetchUnits() }, [fetchUnits])
-
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3000)
-  }
 
   const resetForm = () => { setForm(emptyForm); setEditingId(null); setShowForm(false) }
 
@@ -57,15 +50,15 @@ export function UnitsSection() {
         if (form.symbol) input.symbol = form.symbol
         if (form.type) input.type = form.type
         await unitsApi.update(editingId, input)
-        showSuccess('Unit updated successfully')
+        showSuccess('Unit updated', 'The unit has been saved successfully.')
       } else {
         await unitsApi.create(form)
-        showSuccess('Unit created successfully')
+        showSuccess('Unit created', 'The new measurement unit has been added.')
       }
       resetForm()
       await fetchUnits()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save unit')
+      showApiError(err)
     } finally {
       setSaving(false)
     }
@@ -75,10 +68,10 @@ export function UnitsSection() {
     setDeletingId(id)
     try {
       await unitsApi.delete(id)
-      showSuccess('Unit deleted')
+      showSuccess('Unit deleted', 'The unit has been removed.')
       await fetchUnits()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete unit')
+      showApiError(err)
     } finally {
       setDeletingId(null)
     }
@@ -100,19 +93,6 @@ export function UnitsSection() {
           </button>
         </div>
       </div>
-
-      {successMsg && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <Save className="w-4 h-4 shrink-0" /> {successMsg}
-          <button onClick={() => setSuccessMsg(null)} className="ml-auto"><X className="w-4 h-4" /></button>
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
-          <button onClick={() => setError(null)} className="ml-auto"><X className="w-4 h-4" /></button>
-        </div>
-      )}
 
       {showForm && (
         <UnitForm

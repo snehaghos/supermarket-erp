@@ -60,13 +60,15 @@ CREATE TABLE IF NOT EXISTS products (
   -- Pricing (stored in the purchase/selling units respectively)
   purchase_price REAL NOT NULL DEFAULT 0 CHECK (purchase_price >= 0),
   selling_price REAL NOT NULL DEFAULT 0 CHECK (selling_price >= 0),
+  mrp REAL NOT NULL DEFAULT 0,
+  tax_class TEXT NOT NULL DEFAULT '',
   
   -- Minimum stock level (in base unit) - triggers reorder alerts
   min_stock REAL NOT NULL DEFAULT 0 CHECK (min_stock >= 0),
   
   -- Maximum stock level (in base unit) - overstock warning
   max_stock REAL NOT NULL DEFAULT 0 CHECK (max_stock >= 0),
-  
+
   -- Reorder level (in base unit) - when to reorder
   reorder_level REAL NOT NULL DEFAULT 0 CHECK (reorder_level >= 0),
   
@@ -76,6 +78,24 @@ CREATE TABLE IF NOT EXISTS products (
   -- Current stock is ALWAYS in base unit
   current_stock REAL NOT NULL DEFAULT 0 CHECK (current_stock >= 0),
   
+  -- Batch/Expiry/Serial tracking flags
+  track_batch INTEGER NOT NULL DEFAULT 0,
+  track_expiry INTEGER NOT NULL DEFAULT 0,
+  track_serial INTEGER NOT NULL DEFAULT 0,
+
+  -- Default batch number format/prefix
+  batch_number_format TEXT DEFAULT '',
+
+  -- Manufacturing date field label
+  manufacturing_date_field TEXT DEFAULT '',
+
+  -- Expiry date field label
+  expiry_date_field TEXT DEFAULT '',
+
+  -- Serial number format description and validation pattern
+  serial_format TEXT DEFAULT '',
+  serial_validation TEXT DEFAULT '',
+
   status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'discontinued')),
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -242,6 +262,24 @@ CREATE TABLE IF NOT EXISTS product_conversions (
 CREATE INDEX IF NOT EXISTS idx_product_conversions_product ON product_conversions(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_conversions_from ON product_conversions(from_unit_id);
 CREATE INDEX IF NOT EXISTS idx_product_conversions_to ON product_conversions(to_unit_id);
+
+-- ============================================================
+-- PRODUCT IMAGES
+-- ============================================================
+-- Supports multiple images per product with ordering and primary designation
+CREATE TABLE IF NOT EXISTS product_images (
+  id TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  image_path TEXT NOT NULL,
+  original_name TEXT DEFAULT '',
+  mime_type TEXT DEFAULT '',
+  file_size INTEGER DEFAULT 0,
+  is_primary INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_id);
 
 -- ============================================================
 -- INDEXES

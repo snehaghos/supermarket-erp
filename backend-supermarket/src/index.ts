@@ -1,7 +1,12 @@
 import 'express-async-errors'
 import express from 'express'
+import type { Request } from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
+import path from 'path'
+import multer from 'multer'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
 
 import { config } from './config'
 import { testConnection } from './db'
@@ -17,6 +22,71 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 app.use(morgan(config.nodeEnv === 'development' ? 'dev' : 'combined'))
+
+// ── Image Upload Configuration ────────────────────────────────────
+
+const UPLOADS_DIR = path.resolve(__dirname, '../uploads')
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true })
+}
+
+const storage = multer.diskStorage({
+  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, UPLOADS_DIR),
+  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
+    const ext = path.extname(file.originalname).toLowerCase()
+    const name = `${crypto.randomUUID()}${ext}`
+    cb(null, name)
+  },
+})
+
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
+
+const upload = multer({
+  storage,
+  limits: { fileSize: MAX_FILE_SIZE },
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(new Error(`Invalid file type: ${file.mimetype}. Only JPG, PNG, and WEBP are allowed.`))
+      return
+    }
+    cb(null, true)
+  },
+})
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(UPLOADS_DIR))
+
+// Image upload endpoint: returns the saved file path
+app.post('/api/upload', upload.single('image'), (req: Request, res: express.Response) => {
+  if (!req.file) {
+    res.status(400).json({ error: 'No file uploaded' })
+    return
+  }
+  res.json({
+    path: `/uploads/${req.file.filename}`,
+    originalName: req.file.originalname,
+    mimeType: req.file.mimetype,
+    fileSize: req.file.size,
+  })
+})
+
+// Multer error handling
+app.use((err: Error, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      res.status(400).json({ error: 'File too large. Maximum size is 5 MB.' })
+      return
+    }
+    res.status(400).json({ error: err.message })
+    return
+  }
+  if (err.message?.startsWith('Invalid file type')) {
+    res.status(400).json({ error: err.message })
+    return
+  }
+  next(err)
+})
 
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -53,7 +123,7 @@ async function start(): Promise<void> {
     console.log(`  Environment: ${config.nodeEnv}`)
     console.log(`=========================================`)
     console.log(`  Endpoints:`)
-  console.log(`  GET    /api/health`)
+    console.log(`  GET    /api/health`)
   console.log(`  GET    /api/units`)
   console.log(`  GET    /api/units/:id`)
   console.log(`  POST   /api/units`)
