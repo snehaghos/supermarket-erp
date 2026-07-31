@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
-import { X, Loader2, Plus, Trash2, AlertTriangle, CheckCircle, HelpCircle, ChevronDown, ChevronRight, GripVertical } from "lucide-react"
+import { useState, useMemo } from "react"
+import { X, Loader2, Plus, Trash2, AlertTriangle, HelpCircle, ChevronDown, ChevronRight, GripVertical } from "lucide-react"
 import type { CreateProductInput, UnitRow, ProductConversionRow } from "@/lib/api"
-import { productsApi } from "@/lib/api"
 
 interface ProductFormProps {
   form: CreateProductInput
@@ -12,16 +11,6 @@ interface ProductFormProps {
   onFormChange: (form: CreateProductInput) => void
   onSave: () => void
   onCancel: () => void
-}
-
-interface UnitValidity {
-  unitId: string
-  unitName: string
-  unitSymbol: string
-  valid: boolean | null
-  checking: boolean
-  factor: number | null
-  error: string | null
 }
 
 // ── Collapsible Section Component ───────────────────────────────
@@ -65,103 +54,22 @@ export function ProductForm({
   form, editingId, saving, activeUnits, existingConversions,
   onFormChange, onSave, onCancel,
 }: ProductFormProps) {
-  // Track conversion path validity for all units
-  const [unitValidities, setUnitValidities] = useState<Record<string, UnitValidity>>({})
-  const validationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isAddMode = !editingId
 
-  const getUnitValidity = (unitId: string): UnitValidity | undefined => unitValidities[unitId]
-
-  const validateConversionPaths = useCallback(async (baseUnitId: string, unitIdsToCheck: string[]) => {
-    if (!baseUnitId || unitIdsToCheck.length === 0) return
-
-    setUnitValidities(prev => {
-      const next = { ...prev }
-      for (const uid of unitIdsToCheck) {
-        next[uid] = { ...next[uid], checking: true, valid: null }
-      }
-      return next
-    })
-
-    try {
-      const results = await productsApi.checkConversions(baseUnitId, unitIdsToCheck)
-      setUnitValidities(prev => {
-        const next = { ...prev }
-        for (const r of results) {
-          next[r.unitId] = {
-            unitId: r.unitId,
-            unitName: r.unitName,
-            unitSymbol: r.unitSymbol,
-            valid: r.valid,
-            checking: false,
-            factor: r.factor,
-            error: r.error,
-          }
-        }
-        return next
-      })
-    } catch {
-      setUnitValidities(prev => {
-        const next = { ...prev }
-        for (const uid of unitIdsToCheck) {
-          next[uid] = { ...next[uid], checking: false, valid: null }
-        }
-        return next
-      })
-    }
-  }, [])
-
-  // Build list of convertible options for dropdowns
-  const convertibleOptions = useMemo((): { convertible: UnitRow[] } => {
-    if (!form.baseUnitId) return { convertible: [] }
-
-    const baseUnit = activeUnits.find((u: UnitRow) => u.id === form.baseUnitId)
-    if (!baseUnit) return { convertible: [] }
-
-    const sameTypeUnits = activeUnits.filter((u: UnitRow) =>
-      u.type === baseUnit.type && u.id !== form.baseUnitId && u.status === 'active'
-    )
-
-    const customConvertibleIds = new Set(
-      (form.productConversions ?? []).flatMap(c => [c.fromUnitId, c.toUnitId])
-    )
-
-    const convertible: UnitRow[] = []
-    for (const u of sameTypeUnits) {
-      const v = getUnitValidity(u.id)
-      if (v?.valid === true || customConvertibleIds.has(u.id)) {
-        convertible.push(u)
-      }
-    }
-
-    return { convertible }
-  }, [form.baseUnitId, form.productConversions, activeUnits, unitValidities])
-
-  // When base unit changes, check ALL same-type units for conversion validity
-  useEffect(() => {
-    if (!form.baseUnitId) return
-
+  // Filter units by same measurement type as base unit (for dropdowns)
+  const sameTypeUnits = useMemo((): UnitRow[] => {
+    if (!form.baseUnitId) return []
     const baseUnit = activeUnits.find(u => u.id === form.baseUnitId)
-    if (!baseUnit) return
-
-    const sameTypeUnitIds = activeUnits
-      .filter(u => u.type === baseUnit.type && u.id !== form.baseUnitId && u.status === 'active')
-      .map(u => u.id)
-
-    if (sameTypeUnitIds.length > 0) {
-      if (validationTimer.current) clearTimeout(validationTimer.current)
-      validationTimer.current = setTimeout(() => {
-        validateConversionPaths(form.baseUnitId, sameTypeUnitIds)
-      }, 300)
-    }
-
-    return () => {
-      if (validationTimer.current) clearTimeout(validationTimer.current)
-    }
-  }, [form.baseUnitId])
+    if (!baseUnit) return []
+    return activeUnits.filter(u =>
+      (u.measurementTypeId === baseUnit.measurementTypeId || u.isPackaging) &&
+      u.id !== form.baseUnitId && u.status === 'active'
+    )
+  }, [form.baseUnitId, activeUnits])
 
   // ── Conversion Validation Helpers ─────────────────────────────
 
-  const validateConversions = useCallback((): string[] => {
+  const conversionErrors = useMemo((): string[] => {
     const errors: string[] = []
     const conversions = form.productConversions ?? []
     const seenPairs = new Set<string>()
@@ -170,65 +78,27 @@ export function ProductForm({
       const c = conversions[i]
       if (!c.fromUnitId || !c.toUnitId) continue
 
-      // Check same unit
       if (c.fromUnitId === c.toUnitId) {
         errors.push(`Row ${i + 1}: Larger and smaller unit must be different`)
       }
 
-      // Check duplicate
       const pair = `${c.fromUnitId}-${c.toUnitId}`
       if (seenPairs.has(pair)) {
         errors.push(`Row ${i + 1}: Duplicate relationship`)
       }
       seenPairs.add(pair)
 
-      // Check same type
       const fromUnit = activeUnits.find(u => u.id === c.fromUnitId)
       const toUnit = activeUnits.find(u => u.id === c.toUnitId)
-      if (fromUnit && toUnit && fromUnit.type !== toUnit.type) {
-        errors.push(`Row ${i + 1}: Units must be same measurement type (${fromUnit.type} ≠ ${toUnit.type})`)
-      }
-    }
-
-    // Check for circular conversions (graph-based check)
-    const graph = new Map<string, string[]>()
-    for (const c of conversions) {
-      if (!c.fromUnitId || !c.toUnitId) continue
-      if (!graph.has(c.fromUnitId)) graph.set(c.fromUnitId, [])
-      graph.get(c.fromUnitId)!.push(c.toUnitId)
-    }
-
-    const hasCycle = () => {
-      const visited = new Set<string>()
-      const inStack = new Set<string>()
-
-      const dfs = (node: string): boolean => {
-        if (inStack.has(node)) return true
-        if (visited.has(node)) return false
-        visited.add(node)
-        inStack.add(node)
-        const neighbors = graph.get(node) ?? []
-        for (const n of neighbors) {
-          if (dfs(n)) return true
+      if (fromUnit && toUnit && fromUnit.measurementTypeId !== toUnit.measurementTypeId) {
+        if (!fromUnit.isPackaging && !toUnit.isPackaging) {
+          errors.push(`Row ${i + 1}: Units must be same measurement type`)
         }
-        inStack.delete(node)
-        return false
       }
-
-      for (const node of graph.keys()) {
-        if (dfs(node)) return true
-      }
-      return false
-    }
-
-    if (hasCycle()) {
-      errors.push('Circular conversion detected. Please check your relationships.')
     }
 
     return errors
   }, [form.productConversions, activeUnits])
-
-  const conversionErrors = useMemo(() => validateConversions(), [validateConversions])
 
   // ── Additional Units ──────────────────────────────────────────
 
@@ -240,18 +110,10 @@ export function ProductForm({
   }
 
   const removeUnit = (index: number) => {
-    const removed = form.additionalUnits[index]
     onFormChange({
       ...form,
       additionalUnits: form.additionalUnits.filter((_, i) => i !== index),
     })
-    if (removed?.unitId) {
-      setUnitValidities(prev => {
-        const next = { ...prev }
-        delete next[removed.unitId]
-        return next
-      })
-    }
   }
 
   const updateUnit = (index: number, unitId: string) => {
@@ -292,37 +154,8 @@ export function ProductForm({
 
   // ── Validation ────────────────────────────────────────────────
 
-  const hasInvalidConversion = () => {
-    const checkUnit = (unitId: string | null | undefined) => {
-      if (!unitId || unitId === form.baseUnitId) return false
-      const v = getUnitValidity(unitId)
-      return v?.valid === false
-    }
-    if (checkUnit(form.purchaseUnitId)) return true
-    if (checkUnit(form.sellingUnitId)) return true
-    for (const au of form.additionalUnits) {
-      if (checkUnit(au.unitId)) return true
-    }
-    return false
-  }
-
-  const isCheckingConversions = () => {
-    const checkUnit = (unitId: string | null | undefined) => {
-      if (!unitId || unitId === form.baseUnitId) return false
-      const v = getUnitValidity(unitId)
-      return v?.checking === true
-    }
-    if (checkUnit(form.purchaseUnitId)) return true
-    if (checkUnit(form.sellingUnitId)) return true
-    for (const au of form.additionalUnits) {
-      if (checkUnit(au.unitId)) return true
-    }
-    return false
-  }
-
-  const invalidFound = hasInvalidConversion() || conversionErrors.length > 0
-  const checkingConversions = isCheckingConversions()
-  const isCreateDisabled = saving || !form.name || !form.sku || !form.baseUnitId || invalidFound || checkingConversions
+  const invalidFound = conversionErrors.length > 0
+  const isCreateDisabled = saving || !form.name || !form.sku || !form.baseUnitId || invalidFound
 
   const selectedBaseUnit = activeUnits.find(u => u.id === form.baseUnitId)
   const selectedPurchaseUnit = activeUnits.find(u => u.id === form.purchaseUnitId)
@@ -333,60 +166,6 @@ export function ProductForm({
   const getUnitSymbol = (id: string): string => activeUnits.find(u => u.id === id)?.symbol ?? '?'
 
   // ── Render helpers ────────────────────────────────────────────
-
-  const renderUnitDropdown = (
-    label: string,
-    value: string | null | undefined,
-    onChange: (val: string | null) => void,
-    options: UnitRow[],
-    placeholder: string,
-    isRequired: boolean,
-    validity: UnitValidity | undefined
-  ) => {
-    const borderColor =
-      validity?.checking ? 'border-blue-300' :
-      validity?.valid === true ? 'border-emerald-400' :
-      validity?.valid === false ? 'border-red-400' :
-      'border-input'
-
-    return (
-      <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          {label} {isRequired && <span className="text-red-500">*</span>}
-        </label>
-        <div className="relative">
-          <select
-            value={value ?? ''}
-            onChange={e => onChange(e.target.value || null)}
-            className={`w-full h-9 px-3 border ${borderColor} rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring transition-colors pr-8`}
-          >
-            <option value="">{placeholder}</option>
-            {options.map(u => (
-              <option key={u.id} value={u.id} title={`${u.name} (${u.symbol}) — ${u.type}`}>
-                {u.name} ({u.symbol}) — {u.type}
-              </option>
-            ))}
-          </select>
-          <div className="absolute right-2 top-1/2 -translate-y-1/2">
-            {validity?.checking && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
-            {!validity?.checking && validity?.valid === true && <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />}
-            {!validity?.checking && validity?.valid === false && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
-          </div>
-        </div>
-        {!validity?.checking && validity?.valid === true && validity.factor !== null && (
-          <p className="text-[10px] text-emerald-600 mt-1">
-            1 {validity.unitSymbol} = {validity.factor} {selectedBaseUnit?.symbol ?? ''} ✓
-          </p>
-        )}
-        {!validity?.checking && validity?.valid === false && validity.error && (
-          <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3 shrink-0" />
-            {validity.error}
-          </p>
-        )}
-      </div>
-    )
-  }
 
   const renderInput = (
     label: string,
@@ -540,10 +319,11 @@ export function ProductForm({
           defaultOpen={true}
         >
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            {/* Base Unit */}
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
                 Base Unit <span className="text-red-500">*</span>
-                <span className="ml-1 text-[10px] text-emerald-600 font-medium">(Storage Unit)</span>
+                <span className="ml-1 text-[10px] text-emerald-600 font-medium">(Storage)</span>
               </label>
               <select
                 value={form.baseUnitId}
@@ -552,49 +332,113 @@ export function ProductForm({
                     ...form,
                     baseUnitId: e.target.value,
                     purchaseUnitId: form.purchaseUnitId === e.target.value ? null : form.purchaseUnitId,
+                    purchaseUnitFactor: undefined,
                     sellingUnitId: form.sellingUnitId === e.target.value ? null : form.sellingUnitId,
+                    sellingUnitFactor: undefined,
                   })
                 }}
                 className="w-full h-9 px-3 border border-emerald-300 rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-colors"
               >
                 <option value="">Select base unit...</option>
                 {activeUnits.map(u => (
-                  <option key={u.id} value={u.id}>{u.name} ({u.symbol}) — {u.type}</option>
+                  <option key={u.id} value={u.id}>{u.name} ({u.symbol}) — {u.measurementTypeName ?? u.type}{u.isPackaging ? ' 📦' : ''}</option>
                 ))}
               </select>
               <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                 <HelpCircle className="w-3 h-3 shrink-0" />
-                Inventory is ALWAYS stored in this unit
+                Inventory stored in this unit
               </p>
             </div>
 
-            {renderUnitDropdown(
-              'Purchase Unit',
-              form.purchaseUnitId,
-              (val) => onFormChange({ ...form, purchaseUnitId: val }),
-              convertibleOptions?.convertible ?? [],
-              convertibleOptions && convertibleOptions.convertible.length > 0
-                ? 'Same as base unit'
-                : 'No convertible units (define a conversion first)',
-              false,
-              form.purchaseUnitId && form.purchaseUnitId !== form.baseUnitId
-                ? getUnitValidity(form.purchaseUnitId)
-                : undefined
-            )}
+            {/* Purchase Unit */}
+            <div className="space-y-2">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Purchase Unit</label>
+                <select
+                  value={form.purchaseUnitId ?? ''}
+                  onChange={e => onFormChange({ ...form, purchaseUnitId: e.target.value || null, purchaseUnitFactor: undefined })}
+                  className="w-full h-9 px-3 border border-input rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
+                >
+                  <option value="">Same as base unit</option>
+                  {sameTypeUnits.map(u => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.symbol}) — {u.measurementTypeName ?? u.type}{u.isPackaging ? ' 📦' : ''}</option>
+                  ))}
+                  {sameTypeUnits.length === 0 && <option value="" disabled>No units available</option>}
+                </select>
+              </div>
+              {/* Show factor input when purchase unit differs from base */}
+              {form.purchaseUnitId && form.purchaseUnitId !== form.baseUnitId && selectedBaseUnit && selectedPurchaseUnit && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <label className="block text-[11px] font-medium text-blue-700 mb-1">
+                    1 {selectedPurchaseUnit.symbol} = ? {selectedBaseUnit.symbol}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-blue-600 font-medium shrink-0">1 {selectedPurchaseUnit.symbol} =</span>
+                    <input
+                      type="number" step="0.000001" min="0.000001"
+                      value={form.purchaseUnitFactor ?? ''}
+                      onChange={e => onFormChange({ ...form, purchaseUnitFactor: parseFloat(e.target.value) || undefined })}
+                      placeholder="Factor"
+                      className="w-24 h-7 px-2 border border-blue-300 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                    <span className="text-xs text-blue-600 font-medium">{selectedBaseUnit.symbol}</span>
+                  </div>
+                  {!form.purchaseUnitFactor && (
+                    <p className="text-[10px] text-blue-500 mt-1">Enter how many {selectedBaseUnit.symbol} equals 1 {selectedPurchaseUnit.symbol}</p>
+                  )}
+                  {form.purchaseUnitFactor && form.purchaseUnitFactor > 0 && (
+                    <p className="text-[10px] text-emerald-600 mt-1 font-medium">
+                      ✓ 1 {selectedPurchaseUnit.symbol} = {form.purchaseUnitFactor} {selectedBaseUnit.symbol}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
 
-            {renderUnitDropdown(
-              'Selling Unit',
-              form.sellingUnitId,
-              (val) => onFormChange({ ...form, sellingUnitId: val }),
-              convertibleOptions?.convertible ?? [],
-              convertibleOptions && convertibleOptions.convertible.length > 0
-                ? 'Same as base unit'
-                : 'No convertible units (define a conversion first)',
-              false,
-              form.sellingUnitId && form.sellingUnitId !== form.baseUnitId
-                ? getUnitValidity(form.sellingUnitId)
-                : undefined
-            )}
+            {/* Selling Unit */}
+            <div className="space-y-2">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Selling Unit</label>
+                <select
+                  value={form.sellingUnitId ?? ''}
+                  onChange={e => onFormChange({ ...form, sellingUnitId: e.target.value || null, sellingUnitFactor: undefined })}
+                  className="w-full h-9 px-3 border border-input rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
+                >
+                  <option value="">Same as base unit</option>
+                  {sameTypeUnits.map(u => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.symbol}) — {u.measurementTypeName ?? u.type}{u.isPackaging ? ' 📦' : ''}</option>
+                  ))}
+                  {sameTypeUnits.length === 0 && <option value="" disabled>No units available</option>}
+                </select>
+              </div>
+              {/* Show factor input when selling unit differs from base */}
+              {form.sellingUnitId && form.sellingUnitId !== form.baseUnitId && selectedBaseUnit && selectedSellingUnit && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <label className="block text-[11px] font-medium text-blue-700 mb-1">
+                    1 {selectedSellingUnit.symbol} = ? {selectedBaseUnit.symbol}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-blue-600 font-medium shrink-0">1 {selectedSellingUnit.symbol} =</span>
+                    <input
+                      type="number" step="0.000001" min="0.000001"
+                      value={form.sellingUnitFactor ?? ''}
+                      onChange={e => onFormChange({ ...form, sellingUnitFactor: parseFloat(e.target.value) || undefined })}
+                      placeholder="Factor"
+                      className="w-24 h-7 px-2 border border-blue-300 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                    <span className="text-xs text-blue-600 font-medium">{selectedBaseUnit.symbol}</span>
+                  </div>
+                  {!form.sellingUnitFactor && (
+                    <p className="text-[10px] text-blue-500 mt-1">Enter how many {selectedBaseUnit.symbol} equals 1 {selectedSellingUnit.symbol}</p>
+                  )}
+                  {form.sellingUnitFactor && form.sellingUnitFactor > 0 && (
+                    <p className="text-[10px] text-emerald-600 mt-1 font-medium">
+                      ✓ 1 {selectedSellingUnit.symbol} = {form.sellingUnitFactor} {selectedBaseUnit.symbol}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Additional Units */}
@@ -602,7 +446,6 @@ export function ProductForm({
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 Additional Units
-                <span className="text-[10px] text-muted-foreground/60 font-normal">(select from master list)</span>
               </label>
               <button
                 onClick={addUnit}
@@ -614,7 +457,7 @@ export function ProductForm({
             <div className="space-y-2">
               {form.additionalUnits.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-3 bg-muted/30 rounded-lg border border-dashed border-border">
-                  No additional units. Click "Add Unit" to associate more units with this product.
+                  No additional units. Add more units that can be used for this product.
                 </p>
               )}
               {form.additionalUnits.map((au, i) => (
@@ -626,26 +469,15 @@ export function ProductForm({
                     className="flex-1 h-8 px-2 border border-input rounded text-xs bg-card focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
                   >
                     <option value="">Select unit...</option>
-                    {(convertibleOptions?.convertible ?? [])
+                    {sameTypeUnits
                       .filter(u => !selectedAdditionalUnitIds.includes(u.id) || u.id === au.unitId)
                       .map(u => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.symbol}) — {u.type}</option>
+                        <option key={u.id} value={u.id}>{u.name} ({u.symbol}) — {u.measurementTypeName ?? u.type}{u.isPackaging ? ' 📦' : ''}</option>
                       ))}
-                    {convertibleOptions && convertibleOptions.convertible.length === 0 && (
-                      <option value="" disabled>No convertible units available</option>
+                    {sameTypeUnits.length === 0 && (
+                      <option value="" disabled>No units available</option>
                     )}
                   </select>
-                  {au.unitId && au.unitId !== form.baseUnitId && (
-                    <div className="flex items-center gap-1">
-                      {(() => {
-                        const v = getUnitValidity(au.unitId)
-                        if (v?.checking) return <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
-                        if (v?.valid === true) return <CheckCircle className="w-3 h-3 text-emerald-500" />
-                        if (v?.valid === false) return <AlertTriangle className="w-3 h-3 text-red-500" />
-                        return null
-                      })()}
-                    </div>
-                  )}
                   <button onClick={() => removeUnit(i)} className="p-1 rounded hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors shrink-0">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -729,11 +561,18 @@ export function ProductForm({
                           }`}
                         >
                           <option value="">Select...</option>
-                          {activeUnits.filter(u => u.status === 'active').map(u => (
-                            <option key={u.id} value={u.id} title={`${u.name} — ${u.type}`}>
-                              {u.name} ({u.symbol})
-                            </option>
-                          ))}
+                          {(() => {
+                            const baseUnit = activeUnits.find(u => u.id === form.baseUnitId)
+                            const baseTypeId = baseUnit?.measurementTypeId
+                            return activeUnits.filter(u =>
+                              u.status === 'active' &&
+                              (u.measurementTypeId === baseTypeId || u.isPackaging || !baseTypeId)
+                            ).map(u => (
+                              <option key={u.id} value={u.id} title={`${u.name} — ${u.measurementTypeName ?? u.type}`}>
+                                {u.name} ({u.symbol}){u.isPackaging ? ' 📦' : ''}
+                              </option>
+                            ))
+                          })()}
                         </select>
                       </div>
 
@@ -765,11 +604,20 @@ export function ProductForm({
                             }`}
                           >
                             <option value="">Select...</option>
-                            {activeUnits.filter(u => u.status === 'active').map(u => (
-                              <option key={u.id} value={u.id} title={`${u.name} — ${u.type}`}>
-                                {u.name} ({u.symbol})
-                              </option>
-                            ))}
+                            {(() => {
+                              // Get base unit's measurement type for filtering
+                              const baseUnit = activeUnits.find(u => u.id === form.baseUnitId)
+                              const baseTypeId = baseUnit?.measurementTypeId
+                              // Show units of same measurement type OR packaging units
+                              return activeUnits.filter(u =>
+                                u.status === 'active' &&
+                                (u.measurementTypeId === baseTypeId || u.isPackaging || !baseTypeId)
+                              ).map(u => (
+                                <option key={u.id} value={u.id} title={`${u.name} — ${u.measurementTypeName ?? u.type}`}>
+                                  {u.name} ({u.symbol}){u.isPackaging ? ' 📦' : ''}
+                                </option>
+                              ))
+                            })()}
                           </select>
                           <button onClick={() => removeProductConversion(i)} className="p-1.5 rounded hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors shrink-0">
                             <Trash2 className="w-3.5 h-3.5" />
@@ -783,11 +631,11 @@ export function ProductForm({
                   {isValid && !typeMismatch && (
                     <div className="mx-3 mb-3 bg-gradient-to-r from-purple-50 to-purple-100/50 border border-purple-200 rounded-lg p-3">
                       <div className="flex items-center justify-center gap-3 text-sm">
-                        <span className="font-bold text-purple-800 bg-white px-3 py-1.5 rounded-md border border-purple-200 shadow-sm">
+                        <span className="font-bold text-purple-800 bg-card px-3 py-1.5 rounded-md border border-purple-200 shadow-sm">
                           1 {toSym}
                         </span>
                         <span className="text-purple-500 font-bold text-lg">=</span>
-                        <span className="font-bold text-purple-800 bg-white px-3 py-1.5 rounded-md border border-purple-200 shadow-sm">
+                        <span className="font-bold text-purple-800 bg-card px-3 py-1.5 rounded-md border border-purple-200 shadow-sm">
                           {conv.conversionFactor} {fromSym}
                         </span>
                       </div>
@@ -799,7 +647,7 @@ export function ProductForm({
 
                   {typeMismatch && (
                     <div className="mx-3 mb-3 bg-red-50 border border-red-200 rounded-lg p-2 text-center text-[10px] text-red-700">
-                      ⚠ Units must be in the same measurement type ({fromUnit?.type ?? '?'} ≠ {toUnit?.type ?? '?'})
+                      ⚠ Units must be compatible ({fromUnit?.measurementTypeName ?? fromUnit?.type ?? '?'} ≠ {toUnit?.measurementTypeName ?? toUnit?.type ?? '?'})
                     </div>
                   )}
 
@@ -851,107 +699,113 @@ export function ProductForm({
         </CollapsibleSection>
 
         {/* ═══════════════════════════════════════════════════════
-            SECTION 4: PRICING
+            SECTION 4: PRICING (edit only)
            ═══════════════════════════════════════════════════════ */}
-        <CollapsibleSection
-          title="Pricing"
-          icon={<span className="w-1 h-4 rounded-full bg-amber-500" />}
-          color="bg-amber-500"
-          defaultOpen={true}
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {renderNumberInput(
-              `Purchase Price${selectedPurchaseUnit ? ` (per ${selectedPurchaseUnit.symbol})` : ''}`,
-              form.purchasePrice ?? 0,
-              (v) => onFormChange({ ...form, purchasePrice: v }),
-              { symbol: '₹', hint: selectedPurchaseUnit ? `Price per ${selectedPurchaseUnit.name} (${selectedPurchaseUnit.symbol})` : 'Select a purchase unit' }
-            )}
-            {renderNumberInput(
-              `Selling Price${selectedSellingUnit ? ` (per ${selectedSellingUnit.symbol})` : ''}`,
-              form.sellingPrice ?? 0,
-              (v) => onFormChange({ ...form, sellingPrice: v }),
-              { symbol: '₹', hint: selectedSellingUnit ? `Price per ${selectedSellingUnit.name} (${selectedSellingUnit.symbol})` : 'Select a selling unit' }
-            )}
-            {renderNumberInput('MRP (Optional)', form.mrp ?? 0, (v) => onFormChange({ ...form, mrp: v }), { symbol: '₹', hint: 'Maximum Retail Price' })}
-            {/* Tax Class */}
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Tax Class (Optional)</label>
-              <select
-                value={form.taxClass ?? ''}
-                onChange={e => onFormChange({ ...form, taxClass: e.target.value || '' })}
-                className="w-full h-9 px-3 border border-input rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
-              >
-                <option value="">No Tax</option>
-                <option value="gst-0">GST 0%</option>
-                <option value="gst-5">GST 5%</option>
-                <option value="gst-12">GST 12%</option>
-                <option value="gst-18">GST 18%</option>
-                <option value="gst-28">GST 28%</option>
-              </select>
+        {!isAddMode && (
+          <CollapsibleSection
+            title="Pricing"
+            icon={<span className="w-1 h-4 rounded-full bg-amber-500" />}
+            color="bg-amber-500"
+            defaultOpen={true}
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {renderNumberInput(
+                `Purchase Price${selectedPurchaseUnit ? ` (per ${selectedPurchaseUnit.symbol})` : ''}`,
+                form.purchasePrice ?? 0,
+                (v) => onFormChange({ ...form, purchasePrice: v }),
+                { symbol: '₹', hint: selectedPurchaseUnit ? `Price per ${selectedPurchaseUnit.name} (${selectedPurchaseUnit.symbol})` : 'Select a purchase unit' }
+              )}
+              {renderNumberInput(
+                `Selling Price${selectedSellingUnit ? ` (per ${selectedSellingUnit.symbol})` : ''}`,
+                form.sellingPrice ?? 0,
+                (v) => onFormChange({ ...form, sellingPrice: v }),
+                { symbol: '₹', hint: selectedSellingUnit ? `Price per ${selectedSellingUnit.name} (${selectedSellingUnit.symbol})` : 'Select a selling unit' }
+              )}
+              {renderNumberInput('MRP (Optional)', form.mrp ?? 0, (v) => onFormChange({ ...form, mrp: v }), { symbol: '₹', hint: 'Maximum Retail Price' })}
+              {/* Tax Class */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Tax Class (Optional)</label>
+                <select
+                  value={form.taxClass ?? ''}
+                  onChange={e => onFormChange({ ...form, taxClass: e.target.value || '' })}
+                  className="w-full h-9 px-3 border border-input rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
+                >
+                  <option value="">No Tax</option>
+                  <option value="gst-0">GST 0%</option>
+                  <option value="gst-5">GST 5%</option>
+                  <option value="gst-12">GST 12%</option>
+                  <option value="gst-18">GST 18%</option>
+                  <option value="gst-28">GST 28%</option>
+                </select>
+              </div>
             </div>
-          </div>
-          {selectedBaseUnit && (
-            <div className="mt-3 bg-amber-50/50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-              <p className="font-medium mb-1">💡 Pricing Logic</p>
-              <p>Purchase price is per {selectedPurchaseUnit ? `${selectedPurchaseUnit.symbol}` : 'purchase unit'} and selling price is per {selectedSellingUnit ? `${selectedSellingUnit.symbol}` : 'selling unit'}.</p>
-              <p className="mt-0.5">The system stores prices in these units and converts to base unit ({selectedBaseUnit.symbol}) for inventory valuation.</p>
-            </div>
-          )}
-        </CollapsibleSection>
+            {selectedBaseUnit && (
+              <div className="mt-3 bg-amber-50/50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                <p className="font-medium mb-1">💡 Pricing Logic</p>
+                <p>Purchase price is per {selectedPurchaseUnit ? `${selectedPurchaseUnit.symbol}` : 'purchase unit'} and selling price is per {selectedSellingUnit ? `${selectedSellingUnit.symbol}` : 'selling unit'}.</p>
+                <p className="mt-0.5">The system stores prices in these units and converts to base unit ({selectedBaseUnit.symbol}) for inventory valuation.</p>
+              </div>
+            )}
+          </CollapsibleSection>
+        )}
 
         {/* ═══════════════════════════════════════════════════════
-            SECTION 5: INVENTORY SETTINGS
+            SECTION 5: INVENTORY SETTINGS (edit only)
            ═══════════════════════════════════════════════════════ */}
-        <CollapsibleSection
-          title="Inventory Settings"
-          icon={<span className="w-1 h-4 rounded-full bg-cyan-500" />}
-          color="bg-cyan-500"
-          defaultOpen={true}
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {renderNumberInput(
-              `Minimum Stock (in ${selectedBaseUnit?.symbol ?? 'base unit'})`,
-              form.minStock,
-              (v) => onFormChange({ ...form, minStock: v }),
-              { hint: selectedBaseUnit ? `Alert when stock drops below this many ${selectedBaseUnit.symbol}` : '' }
-            )}
-            {renderNumberInput(
-              `Maximum Stock (in ${selectedBaseUnit?.symbol ?? 'base unit'})`,
-              form.maxStock ?? 0,
-              (v) => onFormChange({ ...form, maxStock: v }),
-              { hint: 'Overstock warning threshold' }
-            )}
-            {renderNumberInput(
-              `Reorder Level (in ${selectedBaseUnit?.symbol ?? 'base unit'})`,
-              form.reorderLevel ?? 0,
-              (v) => onFormChange({ ...form, reorderLevel: v }),
-              { hint: 'When stock falls below this, trigger reorder' }
-            )}
-          </div>
-        </CollapsibleSection>
+        {!isAddMode && (
+          <CollapsibleSection
+            title="Inventory Settings"
+            icon={<span className="w-1 h-4 rounded-full bg-cyan-500" />}
+            color="bg-cyan-500"
+            defaultOpen={true}
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {renderNumberInput(
+                `Minimum Stock (in ${selectedBaseUnit?.symbol ?? 'base unit'})`,
+                form.minStock,
+                (v) => onFormChange({ ...form, minStock: v }),
+                { hint: selectedBaseUnit ? `Alert when stock drops below this many ${selectedBaseUnit.symbol}` : '' }
+              )}
+              {renderNumberInput(
+                `Maximum Stock (in ${selectedBaseUnit?.symbol ?? 'base unit'})`,
+                form.maxStock ?? 0,
+                (v) => onFormChange({ ...form, maxStock: v }),
+                { hint: 'Overstock warning threshold' }
+              )}
+              {renderNumberInput(
+                `Reorder Level (in ${selectedBaseUnit?.symbol ?? 'base unit'})`,
+                form.reorderLevel ?? 0,
+                (v) => onFormChange({ ...form, reorderLevel: v }),
+                { hint: 'When stock falls below this, trigger reorder' }
+              )}
+            </div>
+          </CollapsibleSection>
+        )}
 
         {/* ═══════════════════════════════════════════════════════
-            SECTION 6: PRODUCT SETTINGS (Tracking toggles only)
+            SECTION 6: PRODUCT SETTINGS (edit only)
            ═══════════════════════════════════════════════════════ */}
-        <CollapsibleSection
-          title="Product Settings"
-          icon={<span className="w-1 h-4 rounded-full bg-rose-500" />}
-          color="bg-rose-500"
-          defaultOpen={false}
-        >
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <HelpCircle className="w-3 h-3 shrink-0" />
-              Enable tracking features for this product. When disabled, purchase forms will hide those fields.
-            </p>
+        {!isAddMode && (
+          <CollapsibleSection
+            title="Product Settings"
+            icon={<span className="w-1 h-4 rounded-full bg-rose-500" />}
+            color="bg-rose-500"
+            defaultOpen={false}
+          >
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <HelpCircle className="w-3 h-3 shrink-0" />
+                Enable tracking features for this product. When disabled, purchase forms will hide those fields.
+              </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {renderSwitch('Track Batch', 'Track batch numbers for recalls and traceability', form.trackBatch ?? false, (v) => onFormChange({ ...form, trackBatch: v }), 'text-rose-600 focus:ring-rose-500')}
-              {renderSwitch('Track Expiry', 'Track manufacturing and expiry dates', form.trackExpiry ?? false, (v) => onFormChange({ ...form, trackExpiry: v }), 'text-rose-600 focus:ring-rose-500')}
-              {renderSwitch('Track Serial Numbers', 'Track individual serial numbers', form.trackSerialNumber ?? false, (v) => onFormChange({ ...form, trackSerialNumber: v }), 'text-rose-600 focus:ring-rose-500')}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {renderSwitch('Track Batch', 'Track batch numbers for recalls and traceability', form.trackBatch ?? false, (v) => onFormChange({ ...form, trackBatch: v }), 'text-rose-600 focus:ring-rose-500')}
+                {renderSwitch('Track Expiry', 'Track manufacturing and expiry dates', form.trackExpiry ?? false, (v) => onFormChange({ ...form, trackExpiry: v }), 'text-rose-600 focus:ring-rose-500')}
+                {renderSwitch('Track Serial Numbers', 'Track individual serial numbers', form.trackSerialNumber ?? false, (v) => onFormChange({ ...form, trackSerialNumber: v }), 'text-rose-600 focus:ring-rose-500')}
+              </div>
             </div>
-          </div>
-        </CollapsibleSection>
+          </CollapsibleSection>
+        )}
 
       </div>
 
@@ -963,13 +817,7 @@ export function ProductForm({
           {invalidFound && (
             <p className="text-[10px] text-red-600 flex items-center gap-1 bg-red-50 px-2 py-1 rounded">
               <AlertTriangle className="w-3 h-3 shrink-0" />
-              {conversionErrors.length > 0 ? 'Fix conversion errors above' : 'Fix conversion path errors above'}
-            </p>
-          )}
-          {checkingConversions && (
-            <p className="text-[10px] text-blue-600 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded">
-              <Loader2 className="w-3 h-3 animate-spin shrink-0" />
-              Checking conversion paths...
+              Fix conversion errors above
             </p>
           )}
         </div>
@@ -981,7 +829,6 @@ export function ProductForm({
             onClick={onSave}
             disabled={isCreateDisabled}
             className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white px-5 py-1.5 rounded-md text-sm font-medium hover:from-emerald-700 hover:to-emerald-600 transition-all disabled:opacity-50 shadow-sm"
-            title={invalidFound ? 'Some units have no conversion path to the base unit' : ''}
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {editingId ? 'Update Product' : 'Create Product'}

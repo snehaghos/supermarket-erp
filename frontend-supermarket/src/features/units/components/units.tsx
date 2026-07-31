@@ -6,10 +6,12 @@ import { unitsApi, type UnitRow, type CreateUnitInput, type UpdateUnitInput } fr
 import { showSuccess, showApiError } from "@/lib/errors"
 import { UnitForm } from "./unit-form"
 import { UnitTable } from "./unit-table"
+import { useLayoutMode, SlideInPanel } from "@/features/layout-mode"
 
-const emptyForm: CreateUnitInput = { name: '', symbol: '', type: 'Count' }
+const emptyForm: CreateUnitInput = { name: '', symbol: '', measurementTypeId: '', isPackaging: false }
 
 export function UnitsSection() {
+  const { mode } = useLayoutMode()
   const [units, setUnits] = useState<UnitRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -36,7 +38,7 @@ export function UnitsSection() {
   const resetForm = () => { setForm(emptyForm); setEditingId(null); setShowForm(false) }
 
   const openEdit = (unit: UnitRow) => {
-    setForm({ name: unit.name, symbol: unit.symbol, type: unit.type })
+    setForm({ name: unit.name, symbol: unit.symbol, measurementTypeId: unit.measurementTypeId, isPackaging: unit.isPackaging })
     setEditingId(unit.id)
     setShowForm(true)
   }
@@ -48,7 +50,8 @@ export function UnitsSection() {
         const input: UpdateUnitInput = {}
         if (form.name) input.name = form.name
         if (form.symbol) input.symbol = form.symbol
-        if (form.type) input.type = form.type
+        if (form.measurementTypeId) input.measurementTypeId = form.measurementTypeId
+        if (form.isPackaging !== undefined) input.isPackaging = form.isPackaging
         await unitsApi.update(editingId, input)
         showSuccess('Unit updated', 'The unit has been saved successfully.')
       } else {
@@ -94,7 +97,8 @@ export function UnitsSection() {
         </div>
       </div>
 
-      {showForm && (
+      {/* Form – rendered based on layout mode */}
+      {showForm && mode === 'inline' && (
         <UnitForm
           form={form}
           editingId={editingId}
@@ -103,6 +107,40 @@ export function UnitsSection() {
           onSave={handleSave}
           onCancel={resetForm}
         />
+      )}
+
+      {showForm && mode === 'modal' && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-24 overflow-y-auto" onClick={resetForm}>
+          <div className="w-full max-w-lg animate-in zoom-in-95 fade-in duration-200" onClick={e => e.stopPropagation()}>
+            <UnitForm
+              form={form}
+              editingId={editingId}
+              saving={saving}
+              onFormChange={setForm}
+              onSave={handleSave}
+              onCancel={resetForm}
+            />
+          </div>
+        </div>
+      )}
+
+      {showForm && mode === 'sidebar' && (
+        <SlideInPanel
+          open={showForm}
+          onClose={resetForm}
+          title={editingId ? 'Edit Unit' : 'New Unit'}
+          width="max-w-xl"
+          showHeader={false}
+        >
+          <UnitForm
+            form={form}
+            editingId={editingId}
+            saving={saving}
+            onFormChange={setForm}
+            onSave={handleSave}
+            onCancel={resetForm}
+          />
+        </SlideInPanel>
       )}
 
       <div className="relative max-w-xs">

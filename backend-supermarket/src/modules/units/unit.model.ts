@@ -1,8 +1,19 @@
+export interface MeasurementTypeRow {
+  id: string
+  name: string
+  description: string
+  sortOrder: number
+  createdAt: string
+}
+
 export interface UnitRow {
   id: string
   name: string
   symbol: string
-  type: 'Count' | 'Weight' | 'Volume' | 'Length' | 'Area' | 'Packaging'
+  measurementTypeId: string
+  measurementTypeName?: string
+  type: string
+  isPackaging: boolean
   status: 'active' | 'inactive'
   createdAt: string
   updatedAt: string

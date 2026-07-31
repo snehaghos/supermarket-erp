@@ -14,6 +14,10 @@ import { ConversionsSection } from '@/features/conversions/components/conversion
 import { ProductsSection } from '@/features/products/components/products'
 import { SuppliersSection } from '@/features/suppliers/components/suppliers'
 import { CustomersSection } from '@/features/customers/components/customers'
+import { LayoutModeProvider, LayoutModeSelector } from '@/features/layout-mode'
+import { ThemeToggle } from '@/features/theme'
+import { SettingsSection } from '@/features/settings'
+import { StockOverviewSection } from '@/features/stock-overview'
 
 // ─── Navigation Structure ────────────────────────────────────────────
 
@@ -305,7 +309,7 @@ function Header({
   const [searchText, setSearchText] = useState('')
 
   return (
-    <header className="h-16 bg-white/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 shrink-0">
+    <header className="h-16 bg-[var(--header-bg)]/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 shrink-0">
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuClick}
@@ -324,6 +328,12 @@ function Header({
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Theme Toggle */}
+        <ThemeToggle />
+
+        {/* Layout Mode Selector */}
+        <LayoutModeSelector />
+
         {/* Global Search */}
         <div className="hidden md:flex relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -424,11 +434,11 @@ export function PortfolioLayout() {
       case 'RETURNS':
         return <PlaceholderPage title="Returns" description="Manage purchase returns and sales returns with full audit trail. Coming soon." icon={ArrowLeftRight} />
       case 'STOCK':
-        return <PlaceholderPage title="Stock Overview" description="Stock transfers between warehouses, adjustments for damaged/expired/lost items, physical count reconciliation. Coming soon." icon={Warehouse} />
+        return <StockOverviewSection />
       case 'REPORTS':
         return <PlaceholderPage title="Reports & Analytics" description="Inventory reports, purchase reports, sales reports, profit & loss, stock valuation, expiry reports, and fast/slow moving products. Coming soon." icon={BarChart3} />
       case 'SETTINGS':
-        return <PlaceholderPage title="Settings" description="Role-based access control, notification preferences, pricing strategies, promotion engine, and system configuration. Coming soon." icon={Settings} />
+        return <SettingsSection />
       case 'ACTIVITY':
         return <PlaceholderPage title="Activity Logs" description="Audit trails for all system actions — who did what, when, and where. Coming soon." icon={ScrollText} />
       default:
@@ -437,29 +447,31 @@ export function PortfolioLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <Sidebar
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        sidebarOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        lowStockCount={lowStockCount}
-      />
-
-      {/* Main Area */}
-      <div className="flex-1 flex flex-col min-w-0 max-w-full">
-        <Header
-          activeLabel={activeLabel}
-          onMenuClick={() => setSidebarOpen(true)}
+    <LayoutModeProvider>
+      <div className="min-h-screen bg-background flex">
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          sidebarOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          lowStockCount={lowStockCount}
         />
 
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto scrollbar-thin p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto">
-            {renderContent()}
-          </div>
-        </main>
+        {/* Main Area */}
+        <div className="flex-1 flex flex-col min-w-0 max-w-full">
+          <Header
+            activeLabel={activeLabel}
+            onMenuClick={() => setSidebarOpen(true)}
+          />
+
+          {/* Content */}
+          <main className="flex-1 overflow-y-auto scrollbar-thin p-4 lg:p-6">
+            <div className="max-w-7xl mx-auto">
+              {renderContent()}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </LayoutModeProvider>
   )
 }

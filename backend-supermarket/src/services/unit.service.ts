@@ -22,6 +22,10 @@ export async function getAll(): Promise<UnitRow[]> {
   return unitRepository.getAll()
 }
 
+export async function getByMeasurementType(measurementTypeId: string): Promise<UnitRow[]> {
+  return unitRepository.getByMeasurementType(measurementTypeId)
+}
+
 export async function create(input: CreateUnitInput): Promise<UnitRow> {
   await ensureUniqueName(input.name)
   return unitRepository.create(input)

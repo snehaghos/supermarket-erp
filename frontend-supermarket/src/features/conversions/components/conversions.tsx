@@ -11,10 +11,12 @@ import { showSuccess, showApiError } from "@/lib/errors"
 import { ConversionForm } from "./conversion-form"
 import { ConversionPreview } from "./conversion-preview"
 import { ConversionTable } from "./conversion-table"
+import { useLayoutMode, SlideInPanel } from "@/features/layout-mode"
 
 const emptyForm: CreateConversionInput = { parentUnitId: '', childUnitId: '', factor: 1 }
 
 export function ConversionsSection() {
+  const { mode } = useLayoutMode()
   const [conversions, setConversions] = useState<ConversionRow[]>([])
   const [units, setUnits] = useState<UnitRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -106,7 +108,8 @@ export function ConversionsSection() {
         </div>
       </div>
 
-      {showForm && (
+      {/* Form – rendered based on layout mode */}
+      {showForm && mode === 'inline' && (
         <ConversionForm
           form={form}
           editingId={editingId}
@@ -116,6 +119,42 @@ export function ConversionsSection() {
           onSave={handleSave}
           onCancel={resetForm}
         />
+      )}
+
+      {showForm && mode === 'modal' && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-24 overflow-y-auto" onClick={resetForm}>
+          <div className="w-full max-w-lg animate-in zoom-in-95 fade-in duration-200" onClick={e => e.stopPropagation()}>
+            <ConversionForm
+              form={form}
+              editingId={editingId}
+              saving={saving}
+              activeUnits={activeUnits}
+              onFormChange={setForm}
+              onSave={handleSave}
+              onCancel={resetForm}
+            />
+          </div>
+        </div>
+      )}
+
+      {showForm && mode === 'sidebar' && (
+        <SlideInPanel
+          open={showForm}
+          onClose={resetForm}
+          title={editingId ? 'Edit Conversion' : 'New Conversion'}
+          width="max-w-xl"
+          showHeader={false}
+        >
+          <ConversionForm
+            form={form}
+            editingId={editingId}
+            saving={saving}
+            activeUnits={activeUnits}
+            onFormChange={setForm}
+            onSave={handleSave}
+            onCancel={resetForm}
+          />
+        </SlideInPanel>
       )}
 
       <ConversionPreview activeUnits={activeUnits} />

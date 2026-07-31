@@ -12,6 +12,7 @@ import {
   type CustomerRow, type CreateCustomerInput, type UpdateCustomerInput,
 } from "@/lib/api"
 import { showSuccess, showApiError } from "@/lib/errors"
+import { useLayoutMode, SlideInPanel } from "@/features/layout-mode"
 
 const emptyForm: CreateCustomerInput = {
   name: '', email: '', phone: '', address: '', city: '', state: '', pincode: '',
@@ -19,6 +20,7 @@ const emptyForm: CreateCustomerInput = {
 }
 
 export function CustomersSection() {
+  const { mode } = useLayoutMode()
   const [customers, setCustomers] = useState<CustomerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -126,78 +128,100 @@ export function CustomersSection() {
         </div>
       </div>
 
-      {/* Form */}
-      {showForm && (
-        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/30">
-            <div className="flex items-center gap-2.5">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shadow-sm ${
-                editingId ? 'bg-blue-100 text-blue-700' : 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white'
-              }`}>
-                {editingId ? 'E' : 'N'}
-              </div>
-              <div>
-                <h3 className="font-semibold text-sm text-foreground">{editingId ? 'Edit Customer' : 'New Customer'}</h3>
-                <p className="text-[11px] text-muted-foreground">{editingId ? 'Update customer details' : 'Add a new customer'}</p>
-              </div>
-            </div>
-            <button onClick={resetForm} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
-          </div>
-
-          <div className="p-5 space-y-6">
-            {/* Basic Info */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-1 h-4 rounded-full bg-emerald-500" />
-                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Basic Information</h4>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <FormInput label="Customer Name" value={form.name} onChange={v => setForm({...form, name: v})} placeholder="e.g. Priya Sharma" required icon={<User className="w-3.5 h-3.5" />} />
-                <FormInput label="Email" value={form.email ?? ''} onChange={v => setForm({...form, email: v})} placeholder="customer@example.com" type="email" icon={<Mail className="w-3.5 h-3.5" />} />
-                <FormInput label="Phone" value={form.phone ?? ''} onChange={v => setForm({...form, phone: v})} placeholder="e.g. +91 98765 43210" icon={<Phone className="w-3.5 h-3.5" />} />
-              </div>
-            </div>
-
-            {/* Address */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-1 h-4 rounded-full bg-blue-500" />
-                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Address</h4>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="sm:col-span-2">
-                  <FormInput label="Address" value={form.address ?? ''} onChange={v => setForm({...form, address: v})} placeholder="Street, area, landmark" icon={<MapPin className="w-3.5 h-3.5" />} />
+      {/* Form Body (shared across all layout modes) */}
+      {showForm && (() => {
+        const formBody = (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/30">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shadow-sm ${
+                  editingId ? 'bg-blue-100 text-blue-700' : 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white'
+                }`}>
+                  {editingId ? 'E' : 'N'}
                 </div>
-                <FormInput label="City" value={form.city ?? ''} onChange={v => setForm({...form, city: v})} placeholder="e.g. Mumbai" />
-                <FormInput label="State" value={form.state ?? ''} onChange={v => setForm({...form, state: v})} placeholder="e.g. Maharashtra" />
-                <FormInput label="Pincode" value={form.pincode ?? ''} onChange={v => setForm({...form, pincode: v})} placeholder="e.g. 400001" />
+                <div>
+                  <h3 className="font-semibold text-sm text-foreground">{editingId ? 'Edit Customer' : 'New Customer'}</h3>
+                  <p className="text-[11px] text-muted-foreground">{editingId ? 'Update customer details' : 'Add a new customer'}</p>
+                </div>
+              </div>
+              <button onClick={resetForm} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="p-5 space-y-6">
+              {/* Basic Info */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="w-1 h-4 rounded-full bg-emerald-500" />
+                  <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Basic Information</h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FormInput label="Customer Name" value={form.name} onChange={v => setForm({...form, name: v})} placeholder="e.g. Priya Sharma" required icon={<User className="w-3.5 h-3.5" />} />
+                  <FormInput label="Email" value={form.email ?? ''} onChange={v => setForm({...form, email: v})} placeholder="customer@example.com" type="email" icon={<Mail className="w-3.5 h-3.5" />} />
+                  <FormInput label="Phone" value={form.phone ?? ''} onChange={v => setForm({...form, phone: v})} placeholder="e.g. +91 98765 43210" icon={<Phone className="w-3.5 h-3.5" />} />
+                </div>
+              </div>
+
+              {/* Address */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="w-1 h-4 rounded-full bg-blue-500" />
+                  <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Address</h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="sm:col-span-2">
+                    <FormInput label="Address" value={form.address ?? ''} onChange={v => setForm({...form, address: v})} placeholder="Street, area, landmark" icon={<MapPin className="w-3.5 h-3.5" />} />
+                  </div>
+                  <FormInput label="City" value={form.city ?? ''} onChange={v => setForm({...form, city: v})} placeholder="e.g. Mumbai" />
+                  <FormInput label="State" value={form.state ?? ''} onChange={v => setForm({...form, state: v})} placeholder="e.g. Maharashtra" />
+                  <FormInput label="Pincode" value={form.pincode ?? ''} onChange={v => setForm({...form, pincode: v})} placeholder="e.g. 400001" />
+                </div>
+              </div>
+
+              {/* Financial */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="w-1 h-4 rounded-full bg-amber-500" />
+                  <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Financial Details</h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormInput label="Credit Limit (₹)" value={String(form.creditLimit ?? 0)} onChange={v => setForm({...form, creditLimit: parseFloat(v) || 0})} type="number" icon={<CreditCard className="w-3.5 h-3.5" />} hint="Maximum credit allowed for this customer" />
+                </div>
               </div>
             </div>
 
-            {/* Financial */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-1 h-4 rounded-full bg-amber-500" />
-                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Financial Details</h4>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormInput label="Credit Limit (₹)" value={String(form.creditLimit ?? 0)} onChange={v => setForm({...form, creditLimit: parseFloat(v) || 0})} type="number" icon={<CreditCard className="w-3.5 h-3.5" />} hint="Maximum credit allowed for this customer" />
+            {/* Footer */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-t border-border bg-muted/30">
+              <div />
+              <div className="flex items-center gap-2">
+                <button onClick={resetForm} className="px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted">Cancel</button>
+                <button onClick={handleSave} disabled={saving || !form.name} className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white px-5 py-1.5 rounded-md text-sm font-medium hover:from-emerald-700 hover:to-emerald-600 transition-all disabled:opacity-50 shadow-sm">
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {editingId ? 'Update Customer' : 'Create Customer'}
+                </button>
               </div>
             </div>
-          </div>
+          </>
+        )
 
-          <div className="flex items-center justify-between px-5 py-3.5 border-t border-border bg-muted/30">
-            <div />
-            <div className="flex items-center gap-2">
-              <button onClick={resetForm} className="px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted">Cancel</button>
-              <button onClick={handleSave} disabled={saving || !form.name} className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white px-5 py-1.5 rounded-md text-sm font-medium hover:from-emerald-700 hover:to-emerald-600 transition-all disabled:opacity-50 shadow-sm">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {editingId ? 'Update Customer' : 'Create Customer'}
-              </button>
+        return mode === 'inline' ? (
+          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+            {formBody}
+          </div>
+        ) : mode === 'modal' ? (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto" onClick={resetForm}>
+            <div className="w-full max-w-2xl bg-card border border-border rounded-xl shadow-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200" onClick={e => e.stopPropagation()}>
+              {formBody}
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <SlideInPanel open={showForm} onClose={resetForm} title={editingId ? 'Edit Customer' : 'New Customer'} width="max-w-2xl" showHeader={false}>
+            <div className="bg-card border-b border-border rounded-none">
+              {formBody}
+            </div>
+          </SlideInPanel>
+        )
+      })()}
 
       {/* Search */}
       <div className="relative max-w-xs">

@@ -128,11 +128,22 @@ async function del<T = void>(path: string): Promise<T> {
 
 // ──── Types ─────────────────────────────────────────────────────────
 
+export interface MeasurementTypeRow {
+  id: string
+  name: string
+  description: string
+  sortOrder: number
+  createdAt: string
+}
+
 export interface UnitRow {
   id: string
   name: string
   symbol: string
-  type: 'Count' | 'Weight' | 'Volume' | 'Length' | 'Area' | 'Packaging'
+  measurementTypeId: string
+  measurementTypeName?: string
+  type: string
+  isPackaging: boolean
   status: 'active' | 'inactive'
   createdAt: string
   updatedAt: string
@@ -141,13 +152,15 @@ export interface UnitRow {
 export interface CreateUnitInput {
   name: string
   symbol: string
-  type: UnitRow['type']
+  measurementTypeId: string
+  isPackaging?: boolean
 }
 
 export interface UpdateUnitInput {
   name?: string
   symbol?: string
-  type?: UnitRow['type']
+  measurementTypeId?: string
+  isPackaging?: boolean
 }
 
 export interface ConversionRow {
@@ -287,7 +300,9 @@ export interface CreateProductInput {
   imageUrl?: string
   baseUnitId: string
   purchaseUnitId?: string | null
+  purchaseUnitFactor?: number
   sellingUnitId?: string | null
+  sellingUnitFactor?: number
   purchasePrice?: number
   sellingPrice?: number
   minStock: number
@@ -314,7 +329,9 @@ export interface UpdateProductInput {
   imageUrl?: string
   baseUnitId?: string
   purchaseUnitId?: string | null
+  purchaseUnitFactor?: number
   sellingUnitId?: string | null
+  sellingUnitFactor?: number
   purchasePrice?: number
   sellingPrice?: number
   mrp?: number
@@ -406,11 +423,19 @@ export interface TransactionRow {
   createdAt: string
 }
 
+// ──── Measurement Types API ─────────────────────────────────────────
+
+export const measurementTypesApi = {
+  getAll: () => get<MeasurementTypeRow[]>('/measurement-types'),
+  getById: (id: string) => get<MeasurementTypeRow>(`/measurement-types/${id}`),
+}
+
 // ──── Units API ─────────────────────────────────────────────────────
 
 export const unitsApi = {
   getAll: () => get<UnitRow[]>('/units'),
   getById: (id: string) => get<UnitRow>(`/units/${id}`),
+  getByMeasurementType: (measurementTypeId: string) => get<UnitRow[]>(`/units/by-type/${measurementTypeId}`),
   create: (input: CreateUnitInput) => post<UnitRow>('/units', input),
   update: (id: string, input: UpdateUnitInput) => patch<UnitRow>(`/units/${id}`, input),
   delete: (id: string) => del(`/units/${id}`),

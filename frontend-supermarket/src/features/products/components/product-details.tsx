@@ -416,7 +416,7 @@ function ActionButton({ icon: Icon, label, desc, color, bg, onClick }: {
 }) {
   return (
     <button onClick={onClick} className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left ${bg}`}>
-      <div className="w-10 h-10 rounded-lg bg-white border border-border/50 flex items-center justify-center shrink-0">
+      <div className="w-10 h-10 rounded-lg bg-card border border-border/50 flex items-center justify-center shrink-0">
         <Icon className={`w-5 h-5 ${color}`} />
       </div>
       <div>
@@ -933,7 +933,7 @@ function ImagesTab({ product, onRefresh }: {
                 {i > 0 && (
                   <button
                     onClick={(e) => { e.stopPropagation(); handleSetPrimary(img.id) }}
-                    className="p-1.5 rounded-md bg-white/90 hover:bg-white text-emerald-600 transition-colors shadow-xs"
+                    className="p-1.5 rounded-md bg-card/90 hover:bg-card text-emerald-600 transition-colors shadow-xs"
                     title="Set as primary"
                   >
                     <CheckCircle className="w-3.5 h-3.5" />
@@ -941,7 +941,7 @@ function ImagesTab({ product, onRefresh }: {
                 )}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteImage(img.id) }}
-                  className="p-1.5 rounded-md bg-white/90 hover:bg-white text-red-600 transition-colors shadow-xs"
+                  className="p-1.5 rounded-md bg-card/90 hover:bg-card text-red-600 transition-colors shadow-xs"
                   title="Delete image"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

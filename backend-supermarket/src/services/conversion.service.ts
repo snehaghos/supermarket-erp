@@ -22,6 +22,10 @@ const MAX_CONVERSION_CHAIN_DEPTH = 20
  *   e.g. Box → Strip (×20), Strip → Tablet (×10)
  *   resolveFactorToBase('Box', 'Tablet')  => 200  (downward)
  *   resolveFactorToBase('Strip', 'Box')   => 0.05 (upward via division: 1/20)
+ *
+ * NOTE: Packaging units (isPackaging = true) won't have global conversion chains
+ * and must rely on product-specific conversions instead. This function will throw
+ * NO_CONVERSION_PATH for packaging units without product-specific rules.
  */
 export async function resolveFactorToBase(
   fromUnitId: string,
@@ -37,6 +41,8 @@ export async function resolveFactorToBase(
     throw new AppError(404, 'Unit not found', 'UNIT_NOT_FOUND')
   }
   if (fromUnit.type !== baseUnit.type) {
+    // Allow packaging units to cross-convert if a product-specific conversion exists
+    // (this check is done at the product level, not here)
     throw new AppError(
       400,
       `Cannot convert between different unit categories: ${fromUnit.type} → ${baseUnit.type}`,
@@ -71,11 +77,8 @@ export async function resolveFactorToBase(
     while (steps < MAX_CONVERSION_CHAIN_DEPTH) {
       steps++
       if (current === baseUnitId) return factor
-      // Find a conversion where current unit is the CHILD
       const conv = await conversionRepository.getByChildId(current)
       if (!conv) return null
-      // Going upward: 1 child = (1/factor) parent
-      // So divide by factor at each step
       factor /= conv.factor
       current = conv.parentUnitId
     }
@@ -87,7 +90,10 @@ export async function resolveFactorToBase(
 
   throw new AppError(
     400,
-    `No conversion path found from ${fromUnit?.name ?? 'unknown'} to ${baseUnit?.name ?? 'unknown'}`,
+    `No conversion path found from ${fromUnit?.name ?? 'unknown'} to ${baseUnit?.name ?? 'unknown'}. ` +
+    (fromUnit?.isPackaging
+      ? `'${fromUnit.name}' is a packaging unit and requires a product-specific conversion.`
+      : ''),
     'NO_CONVERSION_PATH'
   )
 }
@@ -128,11 +134,6 @@ export async function convertFromBaseUnit(
  * Display breakdown: given a base quantity and a list of display units
  * (sorted by factor_to_base descending), decompose the quantity into
  * human-readable parts.
- *
- * Example:
- *   baseQuantity = 295 (Tablets)
- *   units = [{ unit: Box, factor_to_base: 200 }, { unit: Strip, factor_to_base: 10 }, { unit: Tablet, factor_to_base: 1 }]
- *   Result: [{ unit: Box, quantity: 1 }, { unit: Strip, quantity: 9 }, { unit: Tablet, quantity: 5 }]
  */
 export function getDisplayQuantity(
   baseQuantity: number,
@@ -142,7 +143,6 @@ export function getDisplayQuantity(
     return [{ unitId: '', unitName: 'Units', unitSymbol: 'U', quantity: baseQuantity }]
   }
 
-  // Sort by factor_to_base descending (largest unit first)
   const sorted = [...displayUnits].sort((a, b) => b.factorToBase - a.factorToBase)
 
   const result: { unitId: string; unitName: string; unitSymbol: string; quantity: number }[] = []
@@ -162,9 +162,7 @@ export function getDisplayQuantity(
     remainder = remainder % unit.factorToBase
   }
 
-  // If no display units matched (remainder < smallest unit's factor_to_base), add remainder as the smallest unit
   if (result.length === 0 || remainder > 0) {
-    // Use the smallest unit (last in sorted, which is the base unit typically)
     const smallestUnit = sorted[sorted.length - 1]!
     result.push({
       unitId: smallestUnit.unitId,
@@ -179,7 +177,6 @@ export function getDisplayQuantity(
 
 /**
  * Simple text display of quantity in base unit.
- * e.g. 15340 Grams → "15.34 kg" or "15 Kilograms, 340 Grams"
  */
 export function formatDisplayQuantity(
   baseQuantity: number,
@@ -190,7 +187,7 @@ export function formatDisplayQuantity(
 }
 
 // ============================================================
-// EXISTING CONVERSION SERVICE FUNCTIONS (preserved)
+// EXISTING CONVERSION SERVICE FUNCTIONS
 // ============================================================
 
 export async function getConversionOrThrow(id: string): Promise<ConversionRow> {
@@ -217,10 +214,22 @@ export async function validateUnits(
     throw new AppError(400, 'Parent and child units must be different', 'SAME_UNIT')
   }
   if (parent.type !== child.type) {
+    // Allow packaging units to be converted with other packaging units
+    // or with standard units if they have the same base measurement type
+    if (!parent.isPackaging || !child.isPackaging) {
+      throw new AppError(
+        400,
+        `Cannot convert between different unit categories: ${parent.name} (${parent.type}) → ${child.name} (${child.type})`,
+        'INVALID_UNIT_CATEGORY'
+      )
+    }
+  }
+  // Prevent global conversions for packaging units - they need product-specific rules
+  if (parent.isPackaging || child.isPackaging) {
     throw new AppError(
       400,
-      `Cannot convert between different unit categories: ${parent.name} (${parent.type}) → ${child.name} (${child.type})`,
-      'INVALID_UNIT_CATEGORY'
+      `Cannot create global conversions for packaging units. Use product-specific conversions instead.`,
+      'PACKAGING_UNIT_CONVERSION'
     )
   }
   return { parent, child }

@@ -34,7 +34,8 @@ async function ensureUniqueSku(sku: string, excludeId?: string): Promise<void> {
 async function validateUnitCategory(
   unitId: string,
   baseUnitId: string,
-  label: string
+  label: string,
+  productConversions?: { fromUnitId: string; toUnitId: string; conversionFactor: number }[]
 ): Promise<void> {
   const unit = await unitRepository.getById(unitId)
   if (!unit) {
@@ -46,12 +47,20 @@ async function validateUnitCategory(
     throw new AppError(404, 'Base unit not found', 'BASE_UNIT_NOT_FOUND')
   }
 
+  // Allow cross-type conversion if the unit is a packaging unit with a product-specific conversion
   if (unit.type !== baseUnit.type) {
-    throw new AppError(
-      400,
-      `${label} (${unit.name}) must be in the same category as base unit (${baseUnit.name}). ${unit.type} → ${baseUnit.type}`,
-      'INVALID_UNIT_CATEGORY'
+    const isPackagingCrossConversion = unit.isPackaging && productConversions && productConversions.some(
+      c => (c.fromUnitId === unitId || c.toUnitId === unitId) &&
+           (c.fromUnitId === baseUnitId || c.toUnitId === baseUnitId)
     )
+
+    if (!isPackagingCrossConversion) {
+      throw new AppError(
+        400,
+        `${label} (${unit.name}) must be in the same category as base unit (${baseUnit.name}). ${unit.type} → ${baseUnit.type}`,
+        'INVALID_UNIT_CATEGORY'
+      )
+    }
   }
 }
 
@@ -99,28 +108,58 @@ export async function create(input: CreateProductInput): Promise<ProductWithRela
     throw new AppError(404, 'Base unit not found', 'BASE_UNIT_NOT_FOUND')
   }
 
-  // Validate purchase and selling units if provided
-  if (input.purchaseUnitId) {
-    await validateUnitCategory(input.purchaseUnitId, input.baseUnitId, 'Purchase unit')
-  }
-  if (input.sellingUnitId) {
-    await validateUnitCategory(input.sellingUnitId, input.baseUnitId, 'Selling unit')
+  // ── Build product-specific conversion entries ──────────────
+  // Auto-generate from purchase/selling unit factors, then add manual ones
+  const productConversionEntries: { fromUnitId: string; toUnitId: string; conversionFactor: number; relationshipText?: string }[] = []
+
+  // If purchase unit differs from base unit and factor is provided, auto-create conversion
+  if (input.purchaseUnitId && input.purchaseUnitId !== input.baseUnitId && input.purchaseUnitFactor) {
+    const fromUnit = await unitRepository.getById(input.purchaseUnitId)
+    const baseUnit = await unitRepository.getById(input.baseUnitId)
+    const fromName = fromUnit?.name ?? '?'
+    const baseName = baseUnit?.name ?? '?'
+    productConversionEntries.push({
+      fromUnitId: input.purchaseUnitId,
+      toUnitId: input.baseUnitId,
+      conversionFactor: input.purchaseUnitFactor,
+      relationshipText: `1 ${fromName} = ${input.purchaseUnitFactor} ${baseName} (purchase conversion)`,
+    })
   }
 
-  // Build product-specific conversion entries with human-readable relationship text
-  const productConversionEntries: { fromUnitId: string; toUnitId: string; conversionFactor: number; relationshipText?: string }[] = []
+  // If selling unit differs from base unit and factor is provided, auto-create conversion
+  if (input.sellingUnitId && input.sellingUnitId !== input.baseUnitId && input.sellingUnitFactor) {
+    const fromUnit = await unitRepository.getById(input.sellingUnitId)
+    const baseUnit = await unitRepository.getById(input.baseUnitId)
+    const fromName = fromUnit?.name ?? '?'
+    const baseName = baseUnit?.name ?? '?'
+    productConversionEntries.push({
+      fromUnitId: input.sellingUnitId,
+      toUnitId: input.baseUnitId,
+      conversionFactor: input.sellingUnitFactor,
+      relationshipText: `1 ${fromName} = ${input.sellingUnitFactor} ${baseName} (selling conversion)`,
+    })
+  }
+
+  // Add manually-defined product conversions
   for (const c of input.productConversions ?? []) {
     const fromUnit = await unitRepository.getById(c.fromUnitId)
     const toUnit = await unitRepository.getById(c.toUnitId)
     const fromName = fromUnit?.name ?? '?'
     const toName = toUnit?.name ?? '?'
-    const relationshipText = `1 ${toName} = ${c.conversionFactor} ${fromName}`
     productConversionEntries.push({
       fromUnitId: c.fromUnitId,
       toUnitId: c.toUnitId,
       conversionFactor: c.conversionFactor,
-      relationshipText,
+      relationshipText: `1 ${toName} = ${c.conversionFactor} ${fromName}`,
     })
+  }
+
+  // Validate purchase and selling units if provided
+  if (input.purchaseUnitId) {
+    await validateUnitCategory(input.purchaseUnitId, input.baseUnitId, 'Purchase unit', productConversionEntries)
+  }
+  if (input.sellingUnitId) {
+    await validateUnitCategory(input.sellingUnitId, input.baseUnitId, 'Selling unit', productConversionEntries)
   }
 
   // Build additional unit entries with conversion factors
@@ -137,9 +176,10 @@ export async function create(input: CreateProductInput): Promise<ProductWithRela
     })
   }
 
-  // If purchase unit is provided and not already in additional units, add it
+  // If purchase unit is provided with a factor, use that; otherwise try to resolve
   if (input.purchaseUnitId && !additionalEntries.some(e => e.unitId === input.purchaseUnitId)) {
-    const factorToBase = await resolveProductFactorToBase(input.purchaseUnitId, input.baseUnitId, productConversionEntries)
+    const factorToBase = input.purchaseUnitFactor
+      ?? await resolveProductFactorToBase(input.purchaseUnitId, input.baseUnitId, productConversionEntries)
     additionalEntries.push({
       unitId: input.purchaseUnitId,
       factorToBase,
@@ -148,9 +188,10 @@ export async function create(input: CreateProductInput): Promise<ProductWithRela
     })
   }
 
-  // If selling unit is provided and not already in additional units, add it
+  // If selling unit is provided with a factor, use that; otherwise try to resolve
   if (input.sellingUnitId && !additionalEntries.some(e => e.unitId === input.sellingUnitId)) {
-    const factorToBase = await resolveProductFactorToBase(input.sellingUnitId, input.baseUnitId, productConversionEntries)
+    const factorToBase = input.sellingUnitFactor
+      ?? await resolveProductFactorToBase(input.sellingUnitId, input.baseUnitId, productConversionEntries)
     additionalEntries.push({
       unitId: input.sellingUnitId,
       factorToBase,
@@ -160,14 +201,10 @@ export async function create(input: CreateProductInput): Promise<ProductWithRela
   }
 
   // Convert opening stock to base unit if provided in a different unit
-  // First try product-specific conversions, fallback to global chain
   let openingStockBase = input.openingStock
   if (input.purchaseUnitId && input.openingStock > 0) {
-    const factor = await resolveProductFactorToBase(
-      input.purchaseUnitId,
-      input.baseUnitId,
-      productConversionEntries
-    )
+    const factor = input.purchaseUnitFactor
+      ?? await resolveProductFactorToBase(input.purchaseUnitId, input.baseUnitId, productConversionEntries)
     openingStockBase = input.openingStock * factor
   }
 
@@ -200,7 +237,11 @@ export async function update(id: string, input: UpdateProductInput): Promise<Pro
   }
 
   // ── Handle product-specific conversions ─────────────────────
-  if (input.productConversions !== undefined) {
+  const effectiveBaseUnitId = input.baseUnitId ?? existing.baseUnitId
+  const effectivePurchaseUnitId = input.purchaseUnitId !== undefined ? input.purchaseUnitId : existing.purchaseUnitId
+  const effectiveSellingUnitId = input.sellingUnitId !== undefined ? input.sellingUnitId : existing.sellingUnitId
+
+  if (input.productConversions !== undefined || input.purchaseUnitFactor !== undefined || input.sellingUnitFactor !== undefined) {
     // Build conversion entries with human-readable relationship text
     const conversionEntries: {
       fromUnitId: string
@@ -209,7 +250,44 @@ export async function update(id: string, input: UpdateProductInput): Promise<Pro
       relationshipText: string
     }[] = []
 
-    for (const c of input.productConversions) {
+    // Auto-generate from purchase unit factor if provided and unit differs from base
+    const purchaseUnitId = input.purchaseUnitId ?? existing.purchaseUnitId
+    if (purchaseUnitId && purchaseUnitId !== effectiveBaseUnitId) {
+      const factor = input.purchaseUnitFactor ?? existing.productConversions.find(
+        c => c.fromUnitId === purchaseUnitId && c.toUnitId === effectiveBaseUnitId
+      )?.conversionFactor
+      if (factor) {
+        const purchaseUnit = await unitRepository.getById(purchaseUnitId)
+        const baseUnit = await unitRepository.getById(effectiveBaseUnitId)
+        conversionEntries.push({
+          fromUnitId: purchaseUnitId,
+          toUnitId: effectiveBaseUnitId,
+          conversionFactor: factor,
+          relationshipText: `1 ${purchaseUnit?.name ?? '?'} = ${factor} ${baseUnit?.name ?? '?'} (purchase)`,
+        })
+      }
+    }
+
+    // Auto-generate from selling unit factor if provided and unit differs from base
+    const sellingUnitId = input.sellingUnitId ?? existing.sellingUnitId
+    if (sellingUnitId && sellingUnitId !== effectiveBaseUnitId) {
+      const factor = input.sellingUnitFactor ?? existing.productConversions.find(
+        c => c.fromUnitId === sellingUnitId && c.toUnitId === effectiveBaseUnitId
+      )?.conversionFactor
+      if (factor) {
+        const sellingUnit = await unitRepository.getById(sellingUnitId)
+        const baseUnit = await unitRepository.getById(effectiveBaseUnitId)
+        conversionEntries.push({
+          fromUnitId: sellingUnitId,
+          toUnitId: effectiveBaseUnitId,
+          conversionFactor: factor,
+          relationshipText: `1 ${sellingUnit?.name ?? '?'} = ${factor} ${baseUnit?.name ?? '?'} (selling)`,
+        })
+      }
+    }
+
+    // Add manually-defined product conversions
+    for (const c of input.productConversions ?? []) {
       const fromUnit = await unitRepository.getById(c.fromUnitId)
       const toUnit = await unitRepository.getById(c.toUnitId)
       if (!fromUnit || !toUnit) continue
@@ -233,12 +311,9 @@ export async function update(id: string, input: UpdateProductInput): Promise<Pro
   }
 
   // ── Handle additional units ─────────────────────────────────
-  const effectiveBaseUnitId = input.baseUnitId ?? existing.baseUnitId
-  const effectivePurchaseUnitId = input.purchaseUnitId !== undefined ? input.purchaseUnitId : existing.purchaseUnitId
-  const effectiveSellingUnitId = input.sellingUnitId !== undefined ? input.sellingUnitId : existing.sellingUnitId
-
   if (input.additionalUnits !== undefined || input.baseUnitId !== undefined ||
-      input.purchaseUnitId !== undefined || input.sellingUnitId !== undefined) {
+      input.purchaseUnitId !== undefined || input.sellingUnitId !== undefined ||
+      input.purchaseUnitFactor !== undefined || input.sellingUnitFactor !== undefined) {
 
     // Build the set of product conversion entries (use new ones if provided, else existing)
     const productConversionEntries = input.productConversions ??

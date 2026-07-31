@@ -11,10 +11,11 @@ import { showSuccess, showApiError } from "@/lib/errors"
 import { ProductForm } from "./product-form"
 import { ProductTable } from "./product-table"
 import { ProductDetailsPage } from "./product-details"
+import { useLayoutMode, SlideInPanel } from "@/features/layout-mode"
 
 const emptyForm: CreateProductInput = {
   name: '', category: 'General', sku: '', barcode: '', brand: '', description: '',
-  baseUnitId: '', purchaseUnitId: null, sellingUnitId: null,
+  baseUnitId: '', purchaseUnitId: null, purchaseUnitFactor: undefined, sellingUnitId: null, sellingUnitFactor: undefined,
   purchasePrice: 0, sellingPrice: 0, mrp: 0, taxClass: '',
   minStock: 0, maxStock: 0, reorderLevel: 0,
   trackBatch: false, trackExpiry: false, trackSerialNumber: false,
@@ -24,6 +25,7 @@ const emptyForm: CreateProductInput = {
 }
 
 export function ProductsSection() {
+  const { mode } = useLayoutMode()
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [units, setUnits] = useState<UnitRow[]>([])
   const [displayStocks, setDisplayStocks] = useState<Record<string, DisplayStock>>({})
@@ -72,6 +74,14 @@ export function ProductsSection() {
   const resetForm = () => { setForm(emptyForm); setEditingId(null); setShowForm(false) }
 
   const openEdit = (product: ProductWithRelations) => {
+    // Find the purchase unit factor from product conversions
+    const purchaseConv = product.productConversions.find(
+      c => c.fromUnitId === product.purchaseUnitId && c.toUnitId === product.baseUnitId
+    )
+    const sellingConv = product.productConversions.find(
+      c => c.fromUnitId === product.sellingUnitId && c.toUnitId === product.baseUnitId
+    )
+
     setForm({
       name: product.name,
       category: product.category,
@@ -84,7 +94,9 @@ export function ProductsSection() {
       trackExpiry: product.trackExpiry,
       trackSerialNumber: product.trackSerial,
       purchaseUnitId: product.purchaseUnitId,
+      purchaseUnitFactor: purchaseConv?.conversionFactor,
       sellingUnitId: product.sellingUnitId,
+      sellingUnitFactor: sellingConv?.conversionFactor,
       purchasePrice: product.purchasePrice,
       sellingPrice: product.sellingPrice,
       mrp: product.mrp,
@@ -96,7 +108,10 @@ export function ProductsSection() {
       additionalUnits: product.units
         .filter(u => u.unitId !== product.baseUnitId)
         .map(u => ({ unitId: u.unitId, isPurchaseUnit: u.isPurchaseUnit, isSellingUnit: u.isSellingUnit })),
-      productConversions: product.productConversions.map(c => ({
+      productConversions: product.productConversions.filter(c =>
+        !(c.fromUnitId === product.purchaseUnitId && c.toUnitId === product.baseUnitId) &&
+        !(c.fromUnitId === product.sellingUnitId && c.toUnitId === product.baseUnitId)
+      ).map(c => ({
         fromUnitId: c.fromUnitId,
         toUnitId: c.toUnitId,
         conversionFactor: c.conversionFactor,
@@ -119,7 +134,9 @@ export function ProductsSection() {
         if (form.description) input.description = form.description
         if (form.baseUnitId) input.baseUnitId = form.baseUnitId
         input.purchaseUnitId = form.purchaseUnitId
+        if (form.purchaseUnitFactor !== undefined) input.purchaseUnitFactor = form.purchaseUnitFactor
         input.sellingUnitId = form.sellingUnitId
+        if (form.sellingUnitFactor !== undefined) input.sellingUnitFactor = form.sellingUnitFactor
         if (form.purchasePrice !== undefined) input.purchasePrice = form.purchasePrice
         if (form.sellingPrice !== undefined) input.sellingPrice = form.sellingPrice
         if (form.mrp !== undefined) input.mrp = form.mrp
@@ -200,7 +217,8 @@ export function ProductsSection() {
         </div>
       </div>
 
-      {showForm && (
+      {/* Form – rendered based on layout mode */}
+      {showForm && mode === 'inline' && (
         <ProductForm
           form={form}
           editingId={editingId}
@@ -211,6 +229,44 @@ export function ProductsSection() {
           onSave={handleSave}
           onCancel={resetForm}
         />
+      )}
+
+      {showForm && mode === 'modal' && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto" onClick={resetForm}>
+          <div className="w-full max-w-4xl animate-in zoom-in-95 fade-in duration-200" onClick={e => e.stopPropagation()}>
+            <ProductForm
+              form={form}
+              editingId={editingId}
+              saving={saving}
+              activeUnits={activeUnits}
+              existingConversions={editingId ? products.find(p => p.id === editingId)?.productConversions : undefined}
+              onFormChange={setForm}
+              onSave={handleSave}
+              onCancel={resetForm}
+            />
+          </div>
+        </div>
+      )}
+
+      {showForm && mode === 'sidebar' && (
+        <SlideInPanel
+          open={showForm}
+          onClose={resetForm}
+          title={editingId ? 'Edit Product' : 'New Product'}
+          width="max-w-2xl"
+          showHeader={false}
+        >
+          <ProductForm
+            form={form}
+            editingId={editingId}
+            saving={saving}
+            activeUnits={activeUnits}
+            existingConversions={editingId ? products.find(p => p.id === editingId)?.productConversions : undefined}
+            onFormChange={setForm}
+            onSave={handleSave}
+            onCancel={resetForm}
+          />
+        </SlideInPanel>
       )}
 
       <div className="relative max-w-xs">

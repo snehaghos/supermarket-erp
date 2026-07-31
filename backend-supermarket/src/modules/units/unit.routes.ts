@@ -6,6 +6,10 @@ import { createUnitSchema, updateUnitSchema } from './unit.validation'
 const router = Router()
 
 router.get('/', unitController.getAll)
+
+// Static routes must come before dynamic :id
+router.get('/by-type/:measurementTypeId', unitController.getByMeasurementType)
+
 router.get('/:id', unitController.getById)
 router.post('/', validate(createUnitSchema), unitController.create)
 router.patch('/:id', validate(updateUnitSchema), unitController.update)

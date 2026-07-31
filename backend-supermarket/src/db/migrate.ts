@@ -45,10 +45,47 @@ export async function migrate(): Promise<void> {
   const sql = fs.readFileSync(sqlPath, 'utf8')
 
   try {
-    // Create/update tables
-    db.exec(sql)
+    // ── Step 1: Prepare existing tables for new schema ──
+    // Must add columns BEFORE executing schema.sql, because the schema.sql
+    // contains INSERT statements that reference these columns. On an existing
+    // database, CREATE TABLE IF NOT EXISTS for 'units' will skip (table exists),
+    // so the old table won't have these columns yet.
 
-    // ── Schema additions (for existing databases) ─────────────────
+    // Ensure measurement_types table exists first (needed for FK reference)
+    const mtColumns = getTableColumns('measurement_types')
+    if (mtColumns.length === 0) {
+      console.log('[MIGRATE] Creating measurement_types table')
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS measurement_types (
+          id TEXT PRIMARY KEY,
+          name VARCHAR(100) NOT NULL UNIQUE,
+          description TEXT DEFAULT '',
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `)
+    }
+
+    // Add new columns to existing units table
+    const unitColumns = getTableColumns('units')
+    if (!unitColumns.includes('measurement_type_id')) {
+      console.log('[MIGRATE] Adding measurement_type_id column to units')
+      db.exec(`ALTER TABLE units ADD COLUMN measurement_type_id TEXT REFERENCES measurement_types(id)`)
+    }
+    if (!unitColumns.includes('is_packaging')) {
+      console.log('[MIGRATE] Adding is_packaging column to units')
+      db.exec(`ALTER TABLE units ADD COLUMN is_packaging INTEGER NOT NULL DEFAULT 0`)
+    }
+
+    // ── Step 2: Create/update tables and seed data ──
+    // Disable FK enforcement during schema execution to allow seed INSERTs
+    // to populate reference tables (measurement_types → units → conversions).
+    // FK enforcement is re-enabled at startup via PRAGMA in db/index.ts
+    db.pragma('foreign_keys = OFF')
+    db.exec(sql)
+    db.pragma('foreign_keys = ON')
+
+    // ── Step 3: Schema additions (for existing databases) ─────────────────
     // These ALTER TABLE statements handle columns added in later schema versions.
     // Full list of columns that may be missing in databases created from older schema versions.
 
@@ -96,8 +133,39 @@ export async function migrate(): Promise<void> {
       `)
     }
 
-    // Ensure indexes exist
+    // ── Step 4: Populate measurement_type_id for existing units ──
+    const measurementTypeMap: Record<string, string> = {
+      'Weight': '00000000-0000-0000-0000-000000000101',
+      'Length': '00000000-0000-0000-0000-000000000102',
+      'Volume': '00000000-0000-0000-0000-000000000103',
+      'Count': '00000000-0000-0000-0000-000000000104',
+      'Area': '00000000-0000-0000-0000-000000000105',
+      'Time': '00000000-0000-0000-0000-000000000106',
+      'Temperature': '00000000-0000-0000-0000-000000000107',
+      'Energy': '00000000-0000-0000-0000-000000000108',
+      'Digital': '00000000-0000-0000-0000-000000000109',
+      'Packaging': '00000000-0000-0000-0000-00000000010a',
+    }
+    for (const [typeName, typeId] of Object.entries(measurementTypeMap)) {
+      const count = db.prepare(
+        `UPDATE units SET measurement_type_id = ?, type = ? WHERE type = ? AND measurement_type_id IS NULL`
+      ).run(typeId, typeName, typeName).changes
+      if (count > 0) {
+        console.log(`[MIGRATE] Updated ${count} '${typeName}' units with measurement_type_id`)
+      }
+    }
+
+    // Update existing packaging units to have is_packaging = 1
+    const packagingCount = db.prepare(
+      `UPDATE units SET is_packaging = 1 WHERE type = 'Packaging' AND is_packaging = 0`
+    ).run().changes
+    if (packagingCount > 0) {
+      console.log(`[MIGRATE] Marked ${packagingCount} packaging units with is_packaging=1`)
+    }
+
+    // ── Step 5: Ensure indexes exist ──
     db.exec('CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_id)')
+    db.exec('CREATE INDEX IF NOT EXISTS idx_units_measurement_type ON units(measurement_type_id)')
 
     console.log('Migration completed successfully')
   } catch (error) {

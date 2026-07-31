@@ -1,14 +1,14 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useNavigate } from "@tanstack/react-router"
+import { useTheme } from "next-themes"
 import {
   Ruler, Package, ArrowRightLeft,
   AlertTriangle, BarChart3,
   DollarSign, Clock, Activity,
   RefreshCw, ArrowUpRight, ArrowDownRight,
-  ShoppingCart, Receipt, Truck, Weight, Droplets,
-  Boxes, LayoutGrid,
+  ShoppingCart, Receipt, Truck,
 } from "lucide-react"
 import { unitsApi, conversionsApi, productsApi } from "@/lib/api"
 import type { UnitRow, ConversionRow, ProductWithRelations, TransactionRow } from "@/lib/api"
@@ -51,6 +51,20 @@ export default function DashboardOverview() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+  const { theme } = useTheme()
+  const isDark = useMemo(() => {
+    if (theme === "system") {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches
+    }
+    return theme === "dark"
+  }, [theme])
+
+  const chartColors = useMemo(() => ({
+    grid: isDark ? "#1e293b" : "#e2e8f0",
+    axis: isDark ? "#64748b" : "#94a3b8",
+    tooltipBg: isDark ? "#131821" : "#ffffff",
+    tooltipBorder: isDark ? "#1e293b" : "#e2e8f0",
+  }), [isDark])
 
   // ── Derived KPIs ──────────────────────────────────────────────
 
@@ -248,21 +262,18 @@ export default function DashboardOverview() {
             <p className="text-sm text-muted-foreground text-center py-8">No units defined yet</p>
           ) : (
             <div className="space-y-2">
-              {(['Count', 'Weight', 'Volume', 'Length', 'Area', 'Packaging'] as const).map(type => {
-                const count = units.filter(u => u.type === type).length
-                const maxCount = Math.max(...['Count', 'Weight', 'Volume', 'Length', 'Area', 'Packaging'].map(t => units.filter(u => u.type === t).length), 1)
-                const TypeIcon = {
-                  Count: Boxes, Weight, Volume: Droplets,
-                  Length: Ruler, Area: LayoutGrid, Packaging: Package,
-                }[type]
+              {Array.from(new Set(units.map(u => u.measurementTypeName ?? u.type))).map(typeName => {
+                const count = units.filter(u => (u.measurementTypeName ?? u.type) === typeName).length
+                const maxCount = Math.max(...Array.from(new Set(units.map(u => u.measurementTypeName ?? u.type)))
+                  .map(t => units.filter(u => (u.measurementTypeName ?? u.type) === t).length), 1)
                 return (
-                  <div key={type} className="flex items-center gap-3 py-1.5">
+                  <div key={typeName} className="flex items-center gap-3 py-1.5">
                     <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
-                      <TypeIcon className="w-4 h-4 text-muted-foreground" />
+                      <Package className="w-4 h-4 text-muted-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-foreground">{type}</span>
+                        <span className="text-sm font-medium text-foreground">{typeName}</span>
                         <span className="text-xs font-semibold text-muted-foreground">{count}</span>
                       </div>
                       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -310,16 +321,16 @@ export default function DashboardOverview() {
                     <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke={chartColors.axis} />
+                <YAxis tick={{ fontSize: 11 }} stroke={chartColors.axis} />
                 <Tooltip
                   contentStyle={{
-                    background: '#fff',
-                    border: '1px solid #e2e8f0',
+                    background: chartColors.tooltipBg,
+                    border: `1px solid ${chartColors.tooltipBorder}`,
                     borderRadius: '8px',
                     fontSize: '12px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                    boxShadow: isDark ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.05)',
                   }}
                 />
                 <Area
@@ -370,8 +381,8 @@ export default function DashboardOverview() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      background: '#fff',
-                      border: '1px solid #e2e8f0',
+                      background: chartColors.tooltipBg,
+                      border: `1px solid ${chartColors.tooltipBorder}`,
                       borderRadius: '8px',
                       fontSize: '12px',
                     }}
@@ -625,7 +636,7 @@ function ActionCard({
       onClick={onClick}
       className={`flex items-center gap-3 p-3 rounded-xl border border-border transition-all duration-200 group text-left ${bg}`}
     >
-      <div className={`w-9 h-9 rounded-lg bg-white border border-border/50 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0`}>
+      <div className={`w-9 h-9 rounded-lg bg-card border border-border/50 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0`}>
         <Icon className={`w-4 h-4 ${color}`} />
       </div>
       <div className="min-w-0">

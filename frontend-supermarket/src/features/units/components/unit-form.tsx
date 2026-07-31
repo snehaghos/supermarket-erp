@@ -1,7 +1,7 @@
+import { useState, useEffect } from "react"
 import { X, Loader2 } from "lucide-react"
-import type { CreateUnitInput, UnitRow } from "@/lib/api"
-
-const UNIT_TYPES = ['Count', 'Weight', 'Volume', 'Length', 'Area', 'Packaging'] as const
+import type { CreateUnitInput, MeasurementTypeRow } from "@/lib/api"
+import { measurementTypesApi } from "@/lib/api"
 
 interface UnitFormProps {
   form: CreateUnitInput
@@ -13,6 +13,12 @@ interface UnitFormProps {
 }
 
 export function UnitForm({ form, editingId, saving, onFormChange, onSave, onCancel }: UnitFormProps) {
+  const [measurementTypes, setMeasurementTypes] = useState<MeasurementTypeRow[]>([])
+
+  useEffect(() => {
+    measurementTypesApi.getAll().then(setMeasurementTypes).catch(() => {})
+  }, [])
+
   return (
     <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-sm">
       <div className="flex items-center justify-between">
@@ -39,21 +45,35 @@ export function UnitForm({ form, editingId, saving, onFormChange, onSave, onCanc
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Measurement Type</label>
           <select
-            value={form.type}
-            onChange={e => onFormChange({ ...form, type: e.target.value as UnitRow['type'] })}
+            value={form.measurementTypeId}
+            onChange={e => onFormChange({ ...form, measurementTypeId: e.target.value })}
             className="w-full h-9 px-3 border border-input rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring focus:border-input transition-colors"
           >
-            {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            <option value="">Select type...</option>
+            {measurementTypes.map(mt => (
+              <option key={mt.id} value={mt.id}>{mt.name}</option>
+            ))}
           </select>
         </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.isPackaging ?? false}
+            onChange={e => onFormChange({ ...form, isPackaging: e.target.checked })}
+            className="rounded border-input"
+          />
+          Packaging unit (requires product-specific conversions)
+        </label>
       </div>
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onCancel} className="px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
         <button
           onClick={onSave}
-          disabled={saving || !form.name || !form.symbol}
+          disabled={saving || !form.name || !form.symbol || !form.measurementTypeId}
           className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-1.5 rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-sm"
         >
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}

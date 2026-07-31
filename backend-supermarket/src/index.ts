@@ -16,6 +16,7 @@ import { errorHandler } from './middleware/errorHandler'
 import unitRoutes from './modules/units/unit.routes'
 import conversionRoutes from './modules/conversions/conversion.routes'
 import productRoutes from './modules/products/product.routes'
+import measurementTypeRoutes from './modules/measurementTypes/measurementType.routes'
 
 const app = express()
 
@@ -99,6 +100,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/units', unitRoutes)
 app.use('/api/conversions', conversionRoutes)
 app.use('/api/products', productRoutes)
+app.use('/api/measurement-types', measurementTypeRoutes)
 
 app.use(errorHandler)
 
@@ -124,8 +126,11 @@ async function start(): Promise<void> {
     console.log(`=========================================`)
     console.log(`  Endpoints:`)
     console.log(`  GET    /api/health`)
+  console.log(`  GET    /api/measurement-types`)
+  console.log(`  GET    /api/measurement-types/:id`)
   console.log(`  GET    /api/units`)
   console.log(`  GET    /api/units/:id`)
+  console.log(`  GET    /api/units/by-type/:measurementTypeId`)
   console.log(`  POST   /api/units`)
   console.log(`  PATCH  /api/units/:id`)
   console.log(`  DELETE /api/units/:id`)

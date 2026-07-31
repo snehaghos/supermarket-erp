@@ -1,14 +1,5 @@
-import { Edit2, Trash2, Loader2 } from "lucide-react"
+import { Edit2, Trash2, Loader2, Package } from "lucide-react"
 import type { UnitRow } from "@/lib/api"
-
-const typeMeta: Record<string, { color: string; label: string }> = {
-  Count:      { color: 'bg-blue-100 text-blue-700 border-blue-200', label: 'Cnt' },
-  Weight:    { color: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Wt' },
-  Volume:    { color: 'bg-cyan-100 text-cyan-700 border-cyan-200', label: 'Vol' },
-  Length:    { color: 'bg-rose-100 text-rose-700 border-rose-200', label: 'Len' },
-  Area:      { color: 'bg-green-100 text-green-700 border-green-200', label: 'Area' },
-  Packaging: { color: 'bg-purple-100 text-purple-700 border-purple-200', label: 'Pkg' },
-}
 
 interface UnitTableProps {
   units: UnitRow[]
@@ -23,7 +14,7 @@ export function UnitTable({ units, loading, search, deletingId, onEdit, onDelete
   const filtered = units.filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.symbol.toLowerCase().includes(search.toLowerCase()) ||
-    u.type.toLowerCase().includes(search.toLowerCase())
+    (u.measurementTypeName ?? u.type).toLowerCase().includes(search.toLowerCase())
   )
 
   if (loading && !units.length) {
@@ -45,7 +36,7 @@ export function UnitTable({ units, loading, search, deletingId, onEdit, onDelete
           <tr>
             <th>Name</th>
             <th>Symbol</th>
-            <th>Type</th>
+            <th>Measurement Type</th>
             <th>Status</th>
             <th className="text-right">Actions</th>
           </tr>
@@ -53,11 +44,25 @@ export function UnitTable({ units, loading, search, deletingId, onEdit, onDelete
         <tbody>
           {filtered.map(unit => (
             <tr key={unit.id}>
-              <td className="font-medium text-foreground">{unit.name}</td>
+              <td className="font-medium text-foreground">
+                <div className="flex items-center gap-2">
+                  {unit.name}
+                  {unit.isPackaging && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                      <Package className="w-2.5 h-2.5" />
+                      Pkg
+                    </span>
+                  )}
+                </div>
+              </td>
               <td><code className="px-2 py-0.5 bg-muted rounded text-xs font-mono text-foreground">{unit.symbol}</code></td>
               <td>
-                <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${typeMeta[unit.type]?.color ?? 'bg-muted text-muted-foreground'}`}>
-                  {typeMeta[unit.type]?.label ?? unit.type}
+                <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                  unit.measurementTypeName
+                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {unit.measurementTypeName ?? unit.type}
                 </span>
               </td>
               <td>

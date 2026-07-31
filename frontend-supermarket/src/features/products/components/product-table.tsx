@@ -29,7 +29,12 @@ export function ProductTable({
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.sku.toLowerCase().includes(search.toLowerCase()) ||
-    p.category.toLowerCase().includes(search.toLowerCase())
+    p.category.toLowerCase().includes(search.toLowerCase()) ||
+    p.productConversions.some(c =>
+      c.relationshipText.toLowerCase().includes(search.toLowerCase()) ||
+      c.fromUnitName.toLowerCase().includes(search.toLowerCase()) ||
+      c.toUnitName.toLowerCase().includes(search.toLowerCase())
+    )
   )
 
   if (loading && !products.length) {
@@ -55,6 +60,7 @@ export function ProductTable({
               <th>SKU</th>
               <th>Category</th>
               <th>Base Unit</th>
+              <th>Conversions</th>
               <th>Current Stock</th>
               <th>Status</th>
               <th className="text-right">Actions</th>
@@ -90,6 +96,25 @@ export function ProductTable({
                 <td>
                   <span className="text-xs font-medium">{product.baseUnitName}</span>
                   <code className="ml-1 text-[10px] text-muted-foreground font-mono">({product.baseUnitSymbol})</code>
+                </td>
+                <td>
+                  {product.productConversions.length > 0 ? (
+                    <div className="flex flex-col gap-1 max-w-[240px]">
+                      {product.productConversions.slice(0, 2).map((conv, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 text-[10px] font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md whitespace-nowrap">
+                          <span className="font-semibold">1 {conv.toUnitSymbol}</span>
+                          <span className="text-purple-400">=</span>
+                          <span className="font-semibold">{conv.conversionFactor}</span>
+                          <span className="text-purple-500">{conv.fromUnitSymbol}</span>
+                        </span>
+                      ))}
+                      {product.productConversions.length > 2 && (
+                        <span className="text-[10px] text-muted-foreground italic">+{product.productConversions.length - 2} more</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">—</span>
+                  )}
                 </td>
                 <td>
                   <div className="flex items-center gap-2">

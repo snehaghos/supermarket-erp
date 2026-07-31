@@ -12,6 +12,11 @@ export async function getById(req: Request, res: Response): Promise<void> {
   res.json(unit)
 }
 
+export async function getByMeasurementType(req: Request, res: Response): Promise<void> {
+  const units = await unitService.getByMeasurementType(req.params.measurementTypeId!)
+  res.json(units)
+}
+
 export async function create(req: Request, res: Response): Promise<void> {
   const input = req.body as CreateUnitInput
   const unit = await unitService.create(input)
