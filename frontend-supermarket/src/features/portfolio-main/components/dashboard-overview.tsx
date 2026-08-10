@@ -1,31 +1,62 @@
-"use client"
+'use client'
 
-import { useState, useEffect, useCallback, useMemo } from "react"
-import { useNavigate } from "@tanstack/react-router"
-import { useTheme } from "next-themes"
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { useTheme } from 'next-themes'
 import {
-  Ruler, Package, ArrowRightLeft,
-  AlertTriangle, BarChart3,
-  DollarSign, Clock, Activity,
-  RefreshCw, ArrowUpRight, ArrowDownRight,
-  ShoppingCart, Receipt, Truck,
-} from "lucide-react"
-import { unitsApi, conversionsApi, productsApi } from "@/lib/api"
-import type { UnitRow, ConversionRow, ProductWithRelations, TransactionRow } from "@/lib/api"
+  Activity,
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowRightLeft,
+  ArrowUpRight,
+  BarChart3,
+  Clock,
+  DollarSign,
+  Package,
+  Receipt,
+  RefreshCw,
+  Ruler,
+  ShoppingCart,
+  Truck,
+} from 'lucide-react'
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
-} from "recharts"
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import type {
+  ConversionRow,
+  ProductWithRelations,
+  TransactionRow,
+  UnitRow,
+} from '@/lib/api'
+import { conversionsApi, productsApi, unitsApi } from '@/lib/api'
 
-const PIE_COLORS = ['#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#d1fae5', '#f59e0b', '#ef4444']
+const PIE_COLORS = [
+  '#059669',
+  '#10b981',
+  '#34d399',
+  '#6ee7b7',
+  '#a7f3d0',
+  '#d1fae5',
+  '#f59e0b',
+  '#ef4444',
+]
 const CHART_GREEN = '#059669'
 
 export default function DashboardOverview() {
   const navigate = useNavigate()
-  const [units, setUnits] = useState<UnitRow[]>([])
-  const [conversions, setConversions] = useState<ConversionRow[]>([])
-  const [products, setProducts] = useState<ProductWithRelations[]>([])
-  const [transactions, setTransactions] = useState<TransactionRow[]>([])
+  const [units, setUnits] = useState<Array<UnitRow>>([])
+  const [conversions, setConversions] = useState<Array<ConversionRow>>([])
+  const [products, setProducts] = useState<Array<ProductWithRelations>>([])
+  const [transactions, setTransactions] = useState<Array<TransactionRow>>([])
   const [loading, setLoading] = useState(true)
   const [dashboardError, setDashboardError] = useState<string | null>(null)
 
@@ -42,47 +73,73 @@ export default function DashboardOverview() {
       if (u.status === 'fulfilled') setUnits(u.value)
       if (c.status === 'fulfilled') setConversions(c.value)
       if (p.status === 'fulfilled') setProducts(p.value)
-      if (t.status === 'fulfilled') setTransactions(t.value as TransactionRow[])
+      if (t.status === 'fulfilled') setTransactions(t.value)
     } catch (err) {
-      setDashboardError(err instanceof Error ? err.message : 'Failed to load dashboard data')
+      setDashboardError(
+        err instanceof Error ? err.message : 'Failed to load dashboard data',
+      )
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
   const { theme } = useTheme()
   const isDark = useMemo(() => {
-    if (theme === "system") {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches
+    if (theme === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches
     }
-    return theme === "dark"
+    return theme === 'dark'
   }, [theme])
 
-  const chartColors = useMemo(() => ({
-    grid: isDark ? "#1e293b" : "#e2e8f0",
-    axis: isDark ? "#64748b" : "#94a3b8",
-    tooltipBg: isDark ? "#131821" : "#ffffff",
-    tooltipBorder: isDark ? "#1e293b" : "#e2e8f0",
-  }), [isDark])
+  const chartColors = useMemo(
+    () => ({
+      grid: isDark ? '#1e293b' : '#e2e8f0',
+      axis: isDark ? '#64748b' : '#94a3b8',
+      tooltipBg: isDark ? '#131821' : '#ffffff',
+      tooltipBorder: isDark ? '#1e293b' : '#e2e8f0',
+    }),
+    [isDark],
+  )
 
   // ── Derived KPIs ──────────────────────────────────────────────
 
-  const activeProducts = products.filter(p => p.status === 'active')
-  const lowStockProducts = products.filter(p => p.currentStock <= p.minStock && p.currentStock > 0)
-  const outOfStockProducts = products.filter(p => p.currentStock === 0)
-  const overstockProducts = products.filter(p => p.maxStock > 0 && p.currentStock >= p.maxStock)
+  const activeProducts = products.filter((p) => p.status === 'active')
+  const lowStockProducts = products.filter(
+    (p) => p.currentStock <= p.minStock && p.currentStock > 0,
+  )
+  const outOfStockProducts = products.filter((p) => p.currentStock === 0)
+  const overstockProducts = products.filter(
+    (p) => p.maxStock > 0 && p.currentStock >= p.maxStock,
+  )
   const totalStock = products.reduce((sum, p) => sum + p.currentStock, 0)
-  const totalStockValue = products.reduce((sum, p) => sum + (p.currentStock * p.purchasePrice), 0)
-  const totalSellingValue = products.reduce((sum, p) => sum + (p.currentStock * p.sellingPrice), 0)
+  const totalStockValue = products.reduce(
+    (sum, p) => sum + p.currentStock * p.purchasePrice,
+    0,
+  )
+  const totalSellingValue = products.reduce(
+    (sum, p) => sum + p.currentStock * p.sellingPrice,
+    0,
+  )
   const potentialProfit = totalSellingValue - totalStockValue
 
   // Today's transactions
   const todayStr = new Date().toISOString().split('T')[0]
-  const todayTransactions = transactions.filter(t => t.createdAt.startsWith(todayStr))
-  const todayPurchases = todayTransactions.filter(t => t.transactionType === 'purchase')
-  const todaySales = todayTransactions.filter(t => t.transactionType === 'sale')
-  const todayPurchaseQty = todayPurchases.reduce((s, t) => s + t.baseQuantity, 0)
+  const todayTransactions = transactions.filter((t) =>
+    t.createdAt.startsWith(todayStr),
+  )
+  const todayPurchases = todayTransactions.filter(
+    (t) => t.transactionType === 'purchase',
+  )
+  const todaySales = todayTransactions.filter(
+    (t) => t.transactionType === 'sale',
+  )
+  const todayPurchaseQty = todayPurchases.reduce(
+    (s, t) => s + t.baseQuantity,
+    0,
+  )
   const todaySaleQty = todaySales.reduce((s, t) => s + t.baseQuantity, 0)
 
   // Weekly data for chart (dynamically generated labels)
@@ -90,18 +147,25 @@ export default function DashboardOverview() {
     const date = new Date()
     date.setDate(date.getDate() - (6 - i))
     const dateStr = date.toISOString().split('T')[0]
-    const dayTxns = transactions.filter(t => t.createdAt.startsWith(dateStr))
+    const dayTxns = transactions.filter((t) => t.createdAt.startsWith(dateStr))
     return {
       name: date.toLocaleDateString('en-US', { weekday: 'short' }),
-      purchases: dayTxns.filter(t => t.transactionType === 'purchase').reduce((s, t) => s + t.baseQuantity, 0),
-      sales: dayTxns.filter(t => t.transactionType === 'sale').reduce((s, t) => s + t.baseQuantity, 0),
+      purchases: dayTxns
+        .filter((t) => t.transactionType === 'purchase')
+        .reduce((s, t) => s + t.baseQuantity, 0),
+      sales: dayTxns
+        .filter((t) => t.transactionType === 'sale')
+        .reduce((s, t) => s + t.baseQuantity, 0),
     }
   })
 
   // Category distribution
   const categoryMap = new Map<string, number>()
   for (const p of activeProducts) {
-    categoryMap.set(p.category, (categoryMap.get(p.category) || 0) + p.currentStock)
+    categoryMap.set(
+      p.category,
+      (categoryMap.get(p.category) || 0) + p.currentStock,
+    )
   }
   const categoryData = Array.from(categoryMap.entries())
     .sort((a, b) => b[1] - a[1])
@@ -119,7 +183,7 @@ export default function DashboardOverview() {
       value: activeProducts.length,
       sub: `${products.length} total · ${outOfStockProducts.length} out of stock`,
       icon: Package,
-      trend: activeProducts.length > 0 ? 'up' as const : 'neutral' as const,
+      trend: activeProducts.length > 0 ? ('up' as const) : ('neutral' as const),
       trendValue: `${((activeProducts.length / (products.length || 1)) * 100).toFixed(0)}% active`,
       color: 'text-emerald-600',
       bg: 'bg-emerald-50',
@@ -141,26 +205,41 @@ export default function DashboardOverview() {
       value: lowStockProducts.length + outOfStockProducts.length,
       sub: `${lowStockProducts.length} low · ${outOfStockProducts.length} out of stock`,
       icon: AlertTriangle,
-      trend: (lowStockProducts.length + outOfStockProducts.length) > 0 ? 'down' as const : 'up' as const,
-      trendValue: (lowStockProducts.length + outOfStockProducts.length) > 0 ? 'Needs attention' : 'All stocked',
-      color: (lowStockProducts.length + outOfStockProducts.length) > 0 ? 'text-amber-600' : 'text-emerald-600',
-      bg: (lowStockProducts.length + outOfStockProducts.length) > 0 ? 'bg-amber-50' : 'bg-emerald-50',
-      iconBg: (lowStockProducts.length + outOfStockProducts.length) > 0 ? 'bg-amber-500' : 'bg-emerald-500',
+      trend:
+        lowStockProducts.length + outOfStockProducts.length > 0
+          ? ('down' as const)
+          : ('up' as const),
+      trendValue:
+        lowStockProducts.length + outOfStockProducts.length > 0
+          ? 'Needs attention'
+          : 'All stocked',
+      color:
+        lowStockProducts.length + outOfStockProducts.length > 0
+          ? 'text-amber-600'
+          : 'text-emerald-600',
+      bg:
+        lowStockProducts.length + outOfStockProducts.length > 0
+          ? 'bg-amber-50'
+          : 'bg-emerald-50',
+      iconBg:
+        lowStockProducts.length + outOfStockProducts.length > 0
+          ? 'bg-amber-500'
+          : 'bg-emerald-500',
     },
     {
-      label: 'Today\'s Activity',
+      label: "Today's Activity",
       value: todayTransactions.length,
       sub: `${todayPurchaseQty} purchased · ${todaySaleQty} sold`,
       icon: Activity,
-      trend: todayTransactions.length > 0 ? 'up' as const : 'neutral' as const,
-      trendValue: todayTransactions.length > 0 ? 'Active today' : 'No activity yet',
+      trend:
+        todayTransactions.length > 0 ? ('up' as const) : ('neutral' as const),
+      trendValue:
+        todayTransactions.length > 0 ? 'Active today' : 'No activity yet',
       color: 'text-violet-600',
       bg: 'bg-violet-50',
       iconBg: 'bg-violet-500',
     },
   ]
-
-
 
   // ── Skeleton ──────────────────────────────────────────────────
 
@@ -169,11 +248,16 @@ export default function DashboardOverview() {
       <div className="space-y-6 animate-in fade-in duration-500">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
-          <p className="text-sm text-muted-foreground mt-1">Loading your inventory data...</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Loading your inventory data...
+          </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => (
-            <div key={i} className="bg-card border border-border rounded-xl p-5">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="bg-card border border-border rounded-xl p-5"
+            >
               <div className="w-10 h-10 bg-muted rounded-lg mb-3 animate-pulse" />
               <div className="h-6 w-20 bg-muted rounded animate-pulse mb-2" />
               <div className="h-4 w-32 bg-muted rounded animate-pulse" />
@@ -191,7 +275,12 @@ export default function DashboardOverview() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            {new Date().toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric',
+            })}
           </p>
         </div>
         <button
@@ -209,7 +298,10 @@ export default function DashboardOverview() {
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           {dashboardError}
-          <button onClick={() => setDashboardError(null)} className="ml-auto p-1 rounded hover:bg-red-100 transition-colors">
+          <button
+            onClick={() => setDashboardError(null)}
+            className="ml-auto p-1 rounded hover:bg-red-100 transition-colors"
+          >
             ✕
           </button>
         </div>
@@ -226,24 +318,38 @@ export default function DashboardOverview() {
             <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br from-transparent to-emerald-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
             <div className="flex items-start justify-between mb-3">
-              <div className={`w-10 h-10 rounded-lg ${card.bg} flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
+              <div
+                className={`w-10 h-10 rounded-lg ${card.bg} flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}
+              >
                 <card.icon className={`w-5 h-5 ${card.color}`} />
               </div>
               {card.trend && (
-                <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${
-                  card.trend === 'up' ? 'text-emerald-600' :
-                  card.trend === 'down' ? 'text-red-600' : 'text-muted-foreground'
-                }`}>
-                  {card.trend === 'up' ? <ArrowUpRight className="w-3 h-3" /> :
-                   card.trend === 'down' ? <ArrowDownRight className="w-3 h-3" /> : null}
+                <span
+                  className={`inline-flex items-center gap-1 text-[10px] font-medium ${
+                    card.trend === 'up'
+                      ? 'text-emerald-600'
+                      : card.trend === 'down'
+                        ? 'text-red-600'
+                        : 'text-muted-foreground'
+                  }`}
+                >
+                  {card.trend === 'up' ? (
+                    <ArrowUpRight className="w-3 h-3" />
+                  ) : card.trend === 'down' ? (
+                    <ArrowDownRight className="w-3 h-3" />
+                  ) : null}
                 </span>
               )}
             </div>
             <p className="text-2xl font-bold text-foreground group-hover:text-emerald-700 transition-colors">
               {card.value}
             </p>
-            <p className="text-xs font-medium text-muted-foreground mt-0.5">{card.label}</p>
-            <p className="text-[10px] text-muted-foreground/60 mt-0.5">{card.sub}</p>
+            <p className="text-xs font-medium text-muted-foreground mt-0.5">
+              {card.label}
+            </p>
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+              {card.sub}
+            </p>
           </div>
         ))}
       </div>
@@ -257,24 +363,50 @@ export default function DashboardOverview() {
             Units by Type
           </h3>
           {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-muted rounded animate-pulse" />)}</div>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+              ))}
+            </div>
           ) : units.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No units defined yet</p>
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No units defined yet
+            </p>
           ) : (
             <div className="space-y-2">
-              {Array.from(new Set(units.map(u => u.measurementTypeName ?? u.type))).map(typeName => {
-                const count = units.filter(u => (u.measurementTypeName ?? u.type) === typeName).length
-                const maxCount = Math.max(...Array.from(new Set(units.map(u => u.measurementTypeName ?? u.type)))
-                  .map(t => units.filter(u => (u.measurementTypeName ?? u.type) === t).length), 1)
+              {Array.from(
+                new Set(units.map((u) => u.measurementTypeName ?? u.type)),
+              ).map((typeName) => {
+                const count = units.filter(
+                  (u) => (u.measurementTypeName ?? u.type) === typeName,
+                ).length
+                const maxCount = Math.max(
+                  ...Array.from(
+                    new Set(units.map((u) => u.measurementTypeName ?? u.type)),
+                  ).map(
+                    (t) =>
+                      units.filter(
+                        (u) => (u.measurementTypeName ?? u.type) === t,
+                      ).length,
+                  ),
+                  1,
+                )
                 return (
-                  <div key={typeName} className="flex items-center gap-3 py-1.5">
+                  <div
+                    key={typeName}
+                    className="flex items-center gap-3 py-1.5"
+                  >
                     <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
                       <Package className="w-4 h-4 text-muted-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-foreground">{typeName}</span>
-                        <span className="text-xs font-semibold text-muted-foreground">{count}</span>
+                        <span className="text-sm font-medium text-foreground">
+                          {typeName}
+                        </span>
+                        <span className="text-xs font-semibold text-muted-foreground">
+                          {count}
+                        </span>
                       </div>
                       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                         <div
@@ -313,16 +445,31 @@ export default function DashboardOverview() {
               <AreaChart data={weeklyData}>
                 <defs>
                   <linearGradient id="purchaseGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={CHART_GREEN} stopOpacity={0.2} />
-                    <stop offset="95%" stopColor={CHART_GREEN} stopOpacity={0} />
+                    <stop
+                      offset="5%"
+                      stopColor={CHART_GREEN}
+                      stopOpacity={0.2}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={CHART_GREEN}
+                      stopOpacity={0}
+                    />
                   </linearGradient>
                   <linearGradient id="saleGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#f97316" stopOpacity={0.2} />
                     <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke={chartColors.axis} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={chartColors.grid}
+                />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11 }}
+                  stroke={chartColors.axis}
+                />
                 <YAxis tick={{ fontSize: 11 }} stroke={chartColors.axis} />
                 <Tooltip
                   contentStyle={{
@@ -330,7 +477,9 @@ export default function DashboardOverview() {
                     border: `1px solid ${chartColors.tooltipBorder}`,
                     borderRadius: '8px',
                     fontSize: '12px',
-                    boxShadow: isDark ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.05)',
+                    boxShadow: isDark
+                      ? '0 4px 12px rgba(0,0,0,0.3)'
+                      : '0 4px 12px rgba(0,0,0,0.05)',
                   }}
                 />
                 <Area
@@ -361,7 +510,9 @@ export default function DashboardOverview() {
             Stock by Category
           </h3>
           {categoryData.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-12">No products yet</p>
+            <p className="text-sm text-muted-foreground text-center py-12">
+              No products yet
+            </p>
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -398,7 +549,9 @@ export default function DashboardOverview() {
                   >
                     <span
                       className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+                      style={{
+                        backgroundColor: PIE_COLORS[i % PIE_COLORS.length],
+                      }}
                     />
                     {cat.name}
                   </span>
@@ -416,65 +569,100 @@ export default function DashboardOverview() {
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-500" />
             Stock Alerts
-            {(lowStockProducts.length + outOfStockProducts.length) > 0 && (
+            {lowStockProducts.length + outOfStockProducts.length > 0 && (
               <span className="ml-auto text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
                 {lowStockProducts.length + outOfStockProducts.length} alerts
               </span>
             )}
           </h3>
           {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-12 bg-muted rounded animate-pulse" />)}</div>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-12 bg-muted rounded animate-pulse" />
+              ))}
+            </div>
           ) : products.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No products yet. Create products to see stock alerts.</p>
-          ) : lowStockProducts.length === 0 && outOfStockProducts.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No products yet. Create products to see stock alerts.
+            </p>
+          ) : lowStockProducts.length === 0 &&
+            outOfStockProducts.length === 0 ? (
             <div className="text-center py-8">
               <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-3">
                 <BarChart3 className="w-6 h-6 text-emerald-500" />
               </div>
-              <p className="text-sm font-medium text-emerald-700">All Stock Levels Healthy</p>
-              <p className="text-xs text-muted-foreground mt-1">No low stock or out-of-stock items</p>
+              <p className="text-sm font-medium text-emerald-700">
+                All Stock Levels Healthy
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                No low stock or out-of-stock items
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
-              {[...outOfStockProducts, ...lowStockProducts].slice(0, 6).map(p => {
-                const stockPercent = p.maxStock > 0 ? (p.currentStock / p.maxStock) * 100 : 0
-                return (
-                  <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate({ to: '/', search: { tab: 'PRODUCTS' } })}>
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${p.currentStock === 0 ? 'bg-red-500' : 'bg-amber-400'}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
-                        <span className={`text-xs font-semibold shrink-0 ml-2 ${p.currentStock === 0 ? 'text-red-600' : 'text-amber-600'}`}>
-                          {p.currentStock} {p.baseUnitSymbol}
-                        </span>
-                      </div>
-                      {p.maxStock > 0 && (
-                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              p.currentStock === 0 ? 'bg-red-500' : 'bg-amber-400'
-                            }`}
-                            style={{ width: `${Math.min(stockPercent, 100)}%` }}
-                          />
+              {[...outOfStockProducts, ...lowStockProducts]
+                .slice(0, 6)
+                .map((p) => {
+                  const stockPercent =
+                    p.maxStock > 0 ? (p.currentStock / p.maxStock) * 100 : 0
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() =>
+                        navigate({ to: '/', search: { tab: 'PRODUCTS' } })
+                      }
+                    >
+                      <div
+                        className={`w-2 h-2 rounded-full shrink-0 ${p.currentStock === 0 ? 'bg-red-500' : 'bg-amber-400'}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {p.name}
+                          </span>
+                          <span
+                            className={`text-xs font-semibold shrink-0 ml-2 ${p.currentStock === 0 ? 'text-red-600' : 'text-amber-600'}`}
+                          >
+                            {p.currentStock} {p.baseUnitSymbol}
+                          </span>
                         </div>
-                      )}
+                        {p.maxStock > 0 && (
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                p.currentStock === 0
+                                  ? 'bg-red-500'
+                                  : 'bg-amber-400'
+                              }`}
+                              style={{
+                                width: `${Math.min(stockPercent, 100)}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <span
+                        className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
+                          p.currentStock === 0
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {p.currentStock === 0 ? 'Out' : 'Low'}
+                      </span>
                     </div>
-                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
-                      p.currentStock === 0
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      {p.currentStock === 0 ? 'Out' : 'Low'}
-                    </span>
-                  </div>
-                )
-              })}
-              {(lowStockProducts.length + outOfStockProducts.length) > 6 && (
+                  )
+                })}
+              {lowStockProducts.length + outOfStockProducts.length > 6 && (
                 <button
-                  onClick={() => navigate({ to: '/', search: { tab: 'PRODUCTS' } })}
+                  onClick={() =>
+                    navigate({ to: '/', search: { tab: 'PRODUCTS' } })
+                  }
                   className="w-full text-center text-xs text-emerald-600 hover:text-emerald-700 font-medium py-2 transition-colors"
                 >
-                  View all {lowStockProducts.length + outOfStockProducts.length} alerts →
+                  View all {lowStockProducts.length + outOfStockProducts.length}{' '}
+                  alerts →
                 </button>
               )}
             </div>
@@ -488,34 +676,59 @@ export default function DashboardOverview() {
             Recent Activity
           </h3>
           {loading ? (
-            <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-10 bg-muted rounded animate-pulse" />)}</div>
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+              ))}
+            </div>
           ) : recentTransactions.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No recent activity. Start by adding products and making transactions.</p>
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No recent activity. Start by adding products and making
+              transactions.
+            </p>
           ) : (
             <div className="space-y-1">
-              {recentTransactions.map(tx => (
-                <div key={tx.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors group">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                    tx.transactionType === 'purchase' ? 'bg-emerald-100 text-emerald-700' :
-                    tx.transactionType === 'sale' ? 'bg-orange-100 text-orange-700' :
-                    tx.transactionType === 'opening_stock' ? 'bg-blue-100 text-blue-700' :
-                    'bg-amber-100 text-amber-700'
-                  }`}>
-                    {tx.transactionType === 'purchase' ? <ShoppingCart className="w-4 h-4" /> :
-                     tx.transactionType === 'sale' ? <Receipt className="w-4 h-4" /> :
-                     <ArrowRightLeft className="w-4 h-4" />}
+              {recentTransactions.map((tx) => (
+                <div
+                  key={tx.id}
+                  className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors group"
+                >
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                      tx.transactionType === 'purchase'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : tx.transactionType === 'sale'
+                          ? 'bg-orange-100 text-orange-700'
+                          : tx.transactionType === 'opening_stock'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {tx.transactionType === 'purchase' ? (
+                      <ShoppingCart className="w-4 h-4" />
+                    ) : tx.transactionType === 'sale' ? (
+                      <Receipt className="w-4 h-4" />
+                    ) : (
+                      <ArrowRightLeft className="w-4 h-4" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-foreground capitalize">
                       {tx.transactionType.replace('_', ' ')}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
-                      {tx.baseQuantity > 0 ? '+' : ''}{tx.baseQuantity} {tx.unitSymbol}
+                      {tx.baseQuantity > 0 ? '+' : ''}
+                      {tx.baseQuantity} {tx.unitSymbol}
                       {tx.notes ? ` · ${tx.notes}` : ''}
                     </p>
                   </div>
                   <time className="text-[10px] text-muted-foreground shrink-0">
-                    {new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {new Date(tx.createdAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
                   </time>
                 </div>
               ))}
@@ -534,27 +747,46 @@ export default function DashboardOverview() {
           </h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <span className="text-xs text-muted-foreground">Avg Stock per Product</span>
+              <span className="text-xs text-muted-foreground">
+                Avg Stock per Product
+              </span>
               <span className="text-xs font-semibold text-foreground">
-                {activeProducts.length > 0 ? (totalStock / activeProducts.length).toFixed(1) : '0'} units
+                {activeProducts.length > 0
+                  ? (totalStock / activeProducts.length).toFixed(1)
+                  : '0'}{' '}
+                units
               </span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <span className="text-xs text-muted-foreground">Overstock Products</span>
-              <span className={`text-xs font-semibold ${overstockProducts.length > 0 ? 'text-amber-600' : 'text-foreground'}`}>
+              <span className="text-xs text-muted-foreground">
+                Overstock Products
+              </span>
+              <span
+                className={`text-xs font-semibold ${overstockProducts.length > 0 ? 'text-amber-600' : 'text-foreground'}`}
+              >
                 {overstockProducts.length}
               </span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <span className="text-xs text-muted-foreground">Conversion Coverage</span>
+              <span className="text-xs text-muted-foreground">
+                Conversion Coverage
+              </span>
               <span className="text-xs font-semibold text-foreground">
-                {units.length > 0 ? `${((conversions.length / Math.max(units.length - 1, 1)) * 100).toFixed(0)}%` : 'N/A'}
+                {units.length > 0
+                  ? `${((conversions.length / Math.max(units.length - 1, 1)) * 100).toFixed(0)}%`
+                  : 'N/A'}
               </span>
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="text-xs text-muted-foreground">Profit Margin</span>
-              <span className={`text-xs font-semibold ${potentialProfit > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                {totalStockValue > 0 ? `${((potentialProfit / totalStockValue) * 100).toFixed(1)}%` : 'N/A'}
+              <span className="text-xs text-muted-foreground">
+                Profit Margin
+              </span>
+              <span
+                className={`text-xs font-semibold ${potentialProfit > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}
+              >
+                {totalStockValue > 0
+                  ? `${((potentialProfit / totalStockValue) * 100).toFixed(1)}%`
+                  : 'N/A'}
               </span>
             </div>
           </div>
@@ -562,7 +794,9 @@ export default function DashboardOverview() {
 
         {/* Quick Actions */}
         <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Quick Actions</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">
+            Quick Actions
+          </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <ActionCard
               icon={Package}
@@ -602,7 +836,9 @@ export default function DashboardOverview() {
               desc="Link units"
               color="text-violet-500"
               bg="hover:bg-violet-50/50 hover:border-violet-200"
-              onClick={() => navigate({ to: '/', search: { tab: 'CONVERSIONS' } })}
+              onClick={() =>
+                navigate({ to: '/', search: { tab: 'CONVERSIONS' } })
+              }
             />
             <ActionCard
               icon={Truck}
@@ -610,7 +846,9 @@ export default function DashboardOverview() {
               desc="Manage vendors"
               color="text-sky-500"
               bg="hover:bg-sky-50/50 hover:border-sky-200"
-              onClick={() => navigate({ to: '/', search: { tab: 'SUPPLIERS' } })}
+              onClick={() =>
+                navigate({ to: '/', search: { tab: 'SUPPLIERS' } })
+              }
             />
           </div>
         </div>
@@ -622,7 +860,12 @@ export default function DashboardOverview() {
 // ── Action Card Sub-Component ─────────────────────────────────────
 
 function ActionCard({
-  icon: Icon, label, desc, color, bg, onClick,
+  icon: Icon,
+  label,
+  desc,
+  color,
+  bg,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>
   label: string
@@ -636,7 +879,9 @@ function ActionCard({
       onClick={onClick}
       className={`flex items-center gap-3 p-3 rounded-xl border border-border transition-all duration-200 group text-left ${bg}`}
     >
-      <div className={`w-9 h-9 rounded-lg bg-card border border-border/50 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0`}>
+      <div
+        className={`w-9 h-9 rounded-lg bg-card border border-border/50 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0`}
+      >
         <Icon className={`w-4 h-4 ${color}`} />
       </div>
       <div className="min-w-0">

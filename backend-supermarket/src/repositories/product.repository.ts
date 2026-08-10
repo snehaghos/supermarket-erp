@@ -110,6 +110,7 @@ function toTransactionRow(row: Record<string, unknown>): InventoryTransactionRow
   return {
     id: row.id as string,
     productId: row.product_id as string,
+    productName: (row.product_name as string) ?? '',
     transactionType: row.transaction_type as InventoryTransactionRow['transactionType'],
     unitId: row.unit_id as string,
     unitName: row.unit_name as string,
@@ -403,6 +404,14 @@ export async function getProductConversions(productId: string): Promise<ProductC
   return result.rows.map(toProductConversionRow)
 }
 
+export async function getProductConversionById(id: string): Promise<ProductConversionRow | null> {
+  const result = await query<Record<string, unknown>>(
+    `${PRODUCT_CONVERSION_SQL} WHERE pc.id = ?`,
+    [id]
+  )
+  return result.rows[0] ? toProductConversionRow(result.rows[0]) : null
+}
+
 export async function createProductConversion(
   productId: string,
   input: CreateProductConversionInput
@@ -553,9 +562,10 @@ export async function createTransaction(params: {
 
 export async function getTransactionById(id: string): Promise<InventoryTransactionRow | null> {
   const result = await query<Record<string, unknown>>(
-    `SELECT t.*, u.name AS unit_name, u.symbol AS unit_symbol
+    `SELECT t.*, u.name AS unit_name, u.symbol AS unit_symbol, p.name AS product_name
      FROM inventory_transactions t
      JOIN units u ON u.id = t.unit_id
+     JOIN products p ON p.id = t.product_id
      WHERE t.id = ?`,
     [id]
   )
@@ -567,9 +577,10 @@ export async function getProductTransactions(
   limit = 50
 ): Promise<InventoryTransactionRow[]> {
   const result = await query<Record<string, unknown>>(
-    `SELECT t.*, u.name AS unit_name, u.symbol AS unit_symbol
+    `SELECT t.*, u.name AS unit_name, u.symbol AS unit_symbol, p.name AS product_name
      FROM inventory_transactions t
      JOIN units u ON u.id = t.unit_id
+     JOIN products p ON p.id = t.product_id
      WHERE t.product_id = ?
      ORDER BY t.created_at DESC
      LIMIT ?`,
@@ -580,9 +591,10 @@ export async function getProductTransactions(
 
 export async function getAllTransactions(limit = 100): Promise<InventoryTransactionRow[]> {
   const result = await query<Record<string, unknown>>(
-    `SELECT t.*, u.name AS unit_name, u.symbol AS unit_symbol
+    `SELECT t.*, u.name AS unit_name, u.symbol AS unit_symbol, p.name AS product_name
      FROM inventory_transactions t
      JOIN units u ON u.id = t.unit_id
+     JOIN products p ON p.id = t.product_id
      ORDER BY t.created_at DESC
      LIMIT ?`,
     [limit]
@@ -593,14 +605,28 @@ export async function getAllTransactions(limit = 100): Promise<InventoryTransact
 // ── Purchase ─────────────────────────────────────────────────────
 
 export async function createPurchase(params: {
+  supplierId?: string | null
   supplierName: string
   notes: string
   purchaseNumber: string
 }): Promise<PurchaseRow> {
   const id = crypto.randomUUID()
+
+  // Denormalize the supplier name onto the purchase when linked to a supplier,
+  // so historical records stay readable even if the supplier is later renamed.
+  // The linked record's name wins over any free-text value sent by the client.
+  let supplierName = params.supplierName
+  if (params.supplierId) {
+    const supplier = await query<Record<string, unknown>>(
+      'SELECT name FROM suppliers WHERE id = ?',
+      [params.supplierId]
+    )
+    supplierName = (supplier.rows[0]?.name as string) ?? supplierName
+  }
+
   const result = await query<Record<string, unknown>>(
-    `INSERT INTO purchases (id, purchase_number, supplier_name, notes) VALUES (?, ?, ?, ?) RETURNING *`,
-    [id, params.purchaseNumber, params.supplierName, params.notes]
+    `INSERT INTO purchases (id, purchase_number, supplier_id, supplier_name, notes) VALUES (?, ?, ?, ?, ?) RETURNING *`,
+    [id, params.purchaseNumber, params.supplierId ?? null, supplierName, params.notes]
   )
   return toPurchaseRow(result.rows[0]!)
 }
@@ -609,7 +635,8 @@ function toPurchaseRow(row: Record<string, unknown>): PurchaseRow {
   return {
     id: row.id as string,
     purchaseNumber: row.purchase_number as string,
-    supplierName: row.supplier_name as string,
+    supplierId: (row.supplier_id as string | null) ?? null,
+    supplierName: (row.supplier_name as string) ?? '',
     notes: row.notes as string,
     totalItems: Number(row.total_items),
     createdAt: row.created_at as string,
@@ -657,9 +684,15 @@ function toPurchaseItemRow(row: Record<string, unknown>): PurchaseItemRow {
   }
 }
 
+const PURCHASE_SELECT_SQL = `
+  SELECT p.*, COALESCE(s.name, p.supplier_name) AS supplier_name
+  FROM purchases p
+  LEFT JOIN suppliers s ON s.id = p.supplier_id
+`
+
 export async function getPurchases(limit = 50): Promise<PurchaseRow[]> {
   const result = await query<Record<string, unknown>>(
-    'SELECT * FROM purchases ORDER BY created_at DESC LIMIT ?',
+    `${PURCHASE_SELECT_SQL} ORDER BY p.created_at DESC LIMIT ?`,
     [limit]
   )
   return result.rows.map(toPurchaseRow)
@@ -667,7 +700,7 @@ export async function getPurchases(limit = 50): Promise<PurchaseRow[]> {
 
 export async function getPurchaseById(id: string): Promise<PurchaseRow | null> {
   const result = await query<Record<string, unknown>>(
-    'SELECT * FROM purchases WHERE id = ?',
+    `${PURCHASE_SELECT_SQL} WHERE p.id = ?`,
     [id]
   )
   if (!result.rows[0]) return null
@@ -692,14 +725,27 @@ export async function getPurchaseItems(purchaseId: string): Promise<PurchaseItem
 // ── Sales ────────────────────────────────────────────────────────
 
 export async function createSale(params: {
+  customerId?: string | null
   customerName: string
   notes: string
   saleNumber: string
 }): Promise<SaleRow> {
   const id = crypto.randomUUID()
+
+  // Denormalize the customer name onto the sale when linked to a customer.
+  // The linked record's name wins over any free-text value sent by the client.
+  let customerName = params.customerName
+  if (params.customerId) {
+    const customer = await query<Record<string, unknown>>(
+      'SELECT name FROM customers WHERE id = ?',
+      [params.customerId]
+    )
+    customerName = (customer.rows[0]?.name as string) ?? customerName
+  }
+
   const result = await query<Record<string, unknown>>(
-    `INSERT INTO sales (id, sale_number, customer_name, notes) VALUES (?, ?, ?, ?) RETURNING *`,
-    [id, params.saleNumber, params.customerName, params.notes]
+    `INSERT INTO sales (id, sale_number, customer_id, customer_name, notes) VALUES (?, ?, ?, ?, ?) RETURNING *`,
+    [id, params.saleNumber, params.customerId ?? null, customerName, params.notes]
   )
   return toSaleRow(result.rows[0]!)
 }
@@ -708,7 +754,8 @@ function toSaleRow(row: Record<string, unknown>): SaleRow {
   return {
     id: row.id as string,
     saleNumber: row.sale_number as string,
-    customerName: row.customer_name as string,
+    customerId: (row.customer_id as string | null) ?? null,
+    customerName: (row.customer_name as string) ?? '',
     notes: row.notes as string,
     totalItems: Number(row.total_items),
     createdAt: row.created_at as string,
@@ -756,9 +803,15 @@ function toSaleItemRow(row: Record<string, unknown>): SaleItemRow {
   }
 }
 
+const SALE_SELECT_SQL = `
+  SELECT s.*, COALESCE(c.name, s.customer_name) AS customer_name
+  FROM sales s
+  LEFT JOIN customers c ON c.id = s.customer_id
+`
+
 export async function getSales(limit = 50): Promise<SaleRow[]> {
   const result = await query<Record<string, unknown>>(
-    'SELECT * FROM sales ORDER BY created_at DESC LIMIT ?',
+    `${SALE_SELECT_SQL} ORDER BY s.created_at DESC LIMIT ?`,
     [limit]
   )
   return result.rows.map(toSaleRow)
@@ -766,7 +819,7 @@ export async function getSales(limit = 50): Promise<SaleRow[]> {
 
 export async function getSaleById(id: string): Promise<SaleRow | null> {
   const result = await query<Record<string, unknown>>(
-    'SELECT * FROM sales WHERE id = ?',
+    `${SALE_SELECT_SQL} WHERE s.id = ?`,
     [id]
   )
   if (!result.rows[0]) return null

@@ -1,18 +1,24 @@
-"use client"
+'use client'
 
-import { useState, useEffect, useCallback } from "react"
-import { Plus, RefreshCw, Search } from "lucide-react"
-import { unitsApi, type UnitRow, type CreateUnitInput, type UpdateUnitInput } from "@/lib/api"
-import { showSuccess, showApiError } from "@/lib/errors"
-import { UnitForm } from "./unit-form"
-import { UnitTable } from "./unit-table"
-import { useLayoutMode, SlideInPanel } from "@/features/layout-mode"
+import { useCallback, useEffect, useState } from 'react'
+import { Plus, RefreshCw, Search } from 'lucide-react'
+import { UnitForm } from './unit-form'
+import { UnitTable } from './unit-table'
+import type { CreateUnitInput, UnitRow, UpdateUnitInput } from '@/lib/api'
+import { unitsApi } from '@/lib/api'
+import { showApiError, showSuccess } from '@/lib/errors'
+import { SlideInPanel, useLayoutMode } from '@/features/layout-mode'
 
-const emptyForm: CreateUnitInput = { name: '', symbol: '', measurementTypeId: '', isPackaging: false }
+const emptyForm: CreateUnitInput = {
+  name: '',
+  symbol: '',
+  measurementTypeId: '',
+  isPackaging: false,
+}
 
 export function UnitsSection() {
   const { mode } = useLayoutMode()
-  const [units, setUnits] = useState<UnitRow[]>([])
+  const [units, setUnits] = useState<Array<UnitRow>>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -33,12 +39,23 @@ export function UnitsSection() {
     }
   }, [])
 
-  useEffect(() => { fetchUnits() }, [fetchUnits])
+  useEffect(() => {
+    fetchUnits()
+  }, [fetchUnits])
 
-  const resetForm = () => { setForm(emptyForm); setEditingId(null); setShowForm(false) }
+  const resetForm = () => {
+    setForm(emptyForm)
+    setEditingId(null)
+    setShowForm(false)
+  }
 
   const openEdit = (unit: UnitRow) => {
-    setForm({ name: unit.name, symbol: unit.symbol, measurementTypeId: unit.measurementTypeId, isPackaging: unit.isPackaging })
+    setForm({
+      name: unit.name,
+      symbol: unit.symbol,
+      measurementTypeId: unit.measurementTypeId,
+      isPackaging: unit.isPackaging,
+    })
     setEditingId(unit.id)
     setShowForm(true)
   }
@@ -50,7 +67,8 @@ export function UnitsSection() {
         const input: UpdateUnitInput = {}
         if (form.name) input.name = form.name
         if (form.symbol) input.symbol = form.symbol
-        if (form.measurementTypeId) input.measurementTypeId = form.measurementTypeId
+        if (form.measurementTypeId)
+          input.measurementTypeId = form.measurementTypeId
         if (form.isPackaging !== undefined) input.isPackaging = form.isPackaging
         await unitsApi.update(editingId, input)
         showSuccess('Unit updated', 'The unit has been saved successfully.')
@@ -85,13 +103,26 @@ export function UnitsSection() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-foreground">Units</h2>
-          <p className="text-sm text-muted-foreground">Manage measurement units for inventory</p>
+          <p className="text-sm text-muted-foreground">
+            Manage measurement units for inventory
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={fetchUnits} disabled={loading} className="p-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50" title="Refresh">
+          <button
+            onClick={fetchUnits}
+            disabled={loading}
+            className="p-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button onClick={() => { resetForm(); setShowForm(true) }} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm">
+          <button
+            onClick={() => {
+              resetForm()
+              setShowForm(true)
+            }}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+          >
             <Plus className="w-4 h-4" /> Add Unit
           </button>
         </div>
@@ -110,8 +141,14 @@ export function UnitsSection() {
       )}
 
       {showForm && mode === 'modal' && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-24 overflow-y-auto" onClick={resetForm}>
-          <div className="w-full max-w-lg animate-in zoom-in-95 fade-in duration-200" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-24 overflow-y-auto"
+          onClick={resetForm}
+        >
+          <div
+            className="w-full max-w-lg animate-in zoom-in-95 fade-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <UnitForm
               form={form}
               editingId={editingId}
@@ -147,7 +184,7 @@ export function UnitsSection() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Search units..."
           className="w-full h-9 pl-9 pr-3 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-input transition-colors"
         />

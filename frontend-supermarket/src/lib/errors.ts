@@ -1,5 +1,5 @@
-import { toast } from "sonner"
-import { ApiError } from "./api"
+import { toast } from 'sonner'
+import { ApiError } from './api'
 
 /**
  * Display a success toast notification
@@ -18,12 +18,15 @@ export function showSuccess(message: string, description?: string) {
 export function showApiError(error: unknown) {
   if (error instanceof ApiError) {
     // Build a user-friendly description from validation details
-    let description = ""
+    let description = ''
     if (error.details.length > 0) {
       description = error.details
         .slice(0, 3) // Show first 3 field errors at most
-        .map(d => `• ${d.field.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase())}: ${d.message}`)
-        .join("\n")
+        .map(
+          (d) =>
+            `• ${d.field.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}: ${d.message}`,
+        )
+        .join('\n')
       if (error.details.length > 3) {
         description += `\n• ...and ${error.details.length - 3} more`
       }
@@ -36,11 +39,11 @@ export function showApiError(error: unknown) {
       duration: error.type === 'validation' ? 6000 : 5000,
     })
   } else if (error instanceof Error) {
-    toast.error(error.message || "An unexpected error occurred", {
+    toast.error(error.message || 'An unexpected error occurred', {
       duration: 5000,
     })
   } else {
-    toast.error("An unexpected error occurred", {
+    toast.error('An unexpected error occurred', {
       duration: 5000,
     })
   }
@@ -71,12 +74,19 @@ export function showInfo(message: string, description?: string) {
  */
 function getErrorLabel(type: string): string {
   switch (type) {
-    case 'validation': return 'Invalid Input'
-    case 'not_found': return 'Not Found'
-    case 'conflict': return 'Already Exists'
-    case 'auth': return 'Access Denied'
-    case 'server': return 'Server Error'
-    case 'network': return 'Connection Error'
-    default: return 'Error'
+    case 'validation':
+      return 'Invalid Input'
+    case 'not_found':
+      return 'Not Found'
+    case 'conflict':
+      return 'Already Exists'
+    case 'auth':
+      return 'Access Denied'
+    case 'server':
+      return 'Server Error'
+    case 'network':
+      return 'Connection Error'
+    default:
+      return 'Error'
   }
 }

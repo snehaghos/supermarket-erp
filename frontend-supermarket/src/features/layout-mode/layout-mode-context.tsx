@@ -1,8 +1,9 @@
-"use client"
+'use client'
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useState } from 'react'
+import type { ReactNode } from 'react'
 
-export type LayoutMode = "modal" | "inline" | "sidebar"
+export type LayoutMode = 'modal' | 'inline' | 'sidebar'
 
 interface LayoutModeContextValue {
   /** The current layout mode for opening forms/modals */
@@ -12,21 +13,22 @@ interface LayoutModeContextValue {
 }
 
 const LayoutModeContext = createContext<LayoutModeContextValue>({
-  mode: "modal",
+  mode: 'modal',
   setMode: () => {},
 })
 
 export function LayoutModeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<LayoutMode>(() => {
     // Persist preference in localStorage
-    const saved = typeof window !== "undefined" ? localStorage.getItem("layout-mode") : null
-    return (saved as LayoutMode) || "modal"
+    const saved =
+      typeof window !== 'undefined' ? localStorage.getItem('layout-mode') : null
+    return (saved as LayoutMode) || 'modal'
   })
 
   const setMode = useCallback((newMode: LayoutMode) => {
     setModeState(newMode)
-    if (typeof window !== "undefined") {
-      localStorage.setItem("layout-mode", newMode)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('layout-mode', newMode)
     }
   }, [])
 
@@ -40,7 +42,7 @@ export function LayoutModeProvider({ children }: { children: ReactNode }) {
 export function useLayoutMode(): LayoutModeContextValue {
   const ctx = useContext(LayoutModeContext)
   if (!ctx) {
-    throw new Error("useLayoutMode must be used within a LayoutModeProvider")
+    throw new Error('useLayoutMode must be used within a LayoutModeProvider')
   }
   return ctx
 }

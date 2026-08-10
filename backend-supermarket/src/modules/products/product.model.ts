@@ -88,6 +88,7 @@ export interface ProductConversionRow {
 export interface InventoryTransactionRow {
   id: string
   productId: string
+  productName: string
   transactionType: 'purchase' | 'sale' | 'adjustment' | 'opening_stock' | 'return'
   unitId: string
   unitName: string
@@ -105,6 +106,7 @@ export interface InventoryTransactionRow {
 export interface PurchaseRow {
   id: string
   purchaseNumber: string
+  supplierId: string | null
   supplierName: string
   notes: string
   totalItems: number
@@ -132,6 +134,7 @@ export interface PurchaseItemRow {
 export interface SaleRow {
   id: string
   saleNumber: string
+  customerId: string | null
   customerName: string
   notes: string
   totalItems: number

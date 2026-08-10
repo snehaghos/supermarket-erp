@@ -1,24 +1,30 @@
-"use client"
+'use client'
 
-import { useState, useEffect, useCallback } from "react"
-import { Plus, RefreshCw, Search } from "lucide-react"
-import {
-  conversionsApi, unitsApi,
-  type ConversionRow, type CreateConversionInput, type UpdateConversionInput,
-  type UnitRow,
-} from "@/lib/api"
-import { showSuccess, showApiError } from "@/lib/errors"
-import { ConversionForm } from "./conversion-form"
-import { ConversionPreview } from "./conversion-preview"
-import { ConversionTable } from "./conversion-table"
-import { useLayoutMode, SlideInPanel } from "@/features/layout-mode"
+import { useCallback, useEffect, useState } from 'react'
+import { Plus, RefreshCw, Search } from 'lucide-react'
+import { ConversionForm } from './conversion-form'
+import { ConversionPreview } from './conversion-preview'
+import { ConversionTable } from './conversion-table'
+import type {
+  ConversionRow,
+  CreateConversionInput,
+  UnitRow,
+  UpdateConversionInput,
+} from '@/lib/api'
+import { showApiError, showSuccess } from '@/lib/errors'
+import { conversionsApi, unitsApi } from '@/lib/api'
+import { SlideInPanel, useLayoutMode } from '@/features/layout-mode'
 
-const emptyForm: CreateConversionInput = { parentUnitId: '', childUnitId: '', factor: 1 }
+const emptyForm: CreateConversionInput = {
+  parentUnitId: '',
+  childUnitId: '',
+  factor: 1,
+}
 
 export function ConversionsSection() {
   const { mode } = useLayoutMode()
-  const [conversions, setConversions] = useState<ConversionRow[]>([])
-  const [units, setUnits] = useState<UnitRow[]>([])
+  const [conversions, setConversions] = useState<Array<ConversionRow>>([])
+  const [units, setUnits] = useState<Array<UnitRow>>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -43,12 +49,22 @@ export function ConversionsSection() {
     }
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
-  const resetForm = () => { setForm(emptyForm); setEditingId(null); setShowForm(false) }
+  const resetForm = () => {
+    setForm(emptyForm)
+    setEditingId(null)
+    setShowForm(false)
+  }
 
   const openEdit = (conv: ConversionRow) => {
-    setForm({ parentUnitId: conv.parentUnitId, childUnitId: conv.childUnitId, factor: conv.factor })
+    setForm({
+      parentUnitId: conv.parentUnitId,
+      childUnitId: conv.childUnitId,
+      factor: conv.factor,
+    })
     setEditingId(conv.id)
     setShowForm(true)
   }
@@ -62,10 +78,16 @@ export function ConversionsSection() {
         if (form.childUnitId) input.childUnitId = form.childUnitId
         if (form.factor) input.factor = form.factor
         await conversionsApi.update(editingId, input)
-        showSuccess('Conversion updated', 'The unit relationship has been saved.')
+        showSuccess(
+          'Conversion updated',
+          'The unit relationship has been saved.',
+        )
       } else {
         await conversionsApi.create(form)
-        showSuccess('Conversion created', 'A new unit relationship has been defined.')
+        showSuccess(
+          'Conversion created',
+          'A new unit relationship has been defined.',
+        )
       }
       resetForm()
       await fetchData()
@@ -80,7 +102,10 @@ export function ConversionsSection() {
     setDeletingId(id)
     try {
       await conversionsApi.delete(id)
-      showSuccess('Conversion deleted', 'The unit relationship has been removed.')
+      showSuccess(
+        'Conversion deleted',
+        'The unit relationship has been removed.',
+      )
       await fetchData()
     } catch (err) {
       showApiError(err)
@@ -89,20 +114,33 @@ export function ConversionsSection() {
     }
   }
 
-  const activeUnits = units.filter(u => u.status === 'active')
+  const activeUnits = units.filter((u) => u.status === 'active')
 
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-foreground">Conversions</h2>
-          <p className="text-sm text-muted-foreground">Define relationships between measurement units</p>
+          <p className="text-sm text-muted-foreground">
+            Define relationships between measurement units
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={fetchData} disabled={loading} className="p-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50" title="Refresh">
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="p-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button onClick={() => { resetForm(); setShowForm(true) }} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm">
+          <button
+            onClick={() => {
+              resetForm()
+              setShowForm(true)
+            }}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+          >
             <Plus className="w-4 h-4" /> Add Conversion
           </button>
         </div>
@@ -122,8 +160,14 @@ export function ConversionsSection() {
       )}
 
       {showForm && mode === 'modal' && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-24 overflow-y-auto" onClick={resetForm}>
-          <div className="w-full max-w-lg animate-in zoom-in-95 fade-in duration-200" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-24 overflow-y-auto"
+          onClick={resetForm}
+        >
+          <div
+            className="w-full max-w-lg animate-in zoom-in-95 fade-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <ConversionForm
               form={form}
               editingId={editingId}
@@ -163,7 +207,7 @@ export function ConversionsSection() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Search conversions..."
           className="w-full h-9 pl-9 pr-3 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-input transition-colors"
         />

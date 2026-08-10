@@ -1,1 +1,1 @@
-export { CustomersSection } from "./components/customers"
+export { CustomersSection } from './components/customers'

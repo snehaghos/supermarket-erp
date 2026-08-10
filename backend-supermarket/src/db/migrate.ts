@@ -30,8 +30,18 @@ function getTableColumns(tableName: string): string[] {
 
 /**
  * Add a column to a table if it doesn't already exist.
+ * Skips tables that don't exist yet (they will be created fresh by schema.sql
+ * with the full column set, so no ALTER is needed).
  */
+function tableExists(table: string): boolean {
+  const row = db.prepare(
+    `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`
+  ).get(table)
+  return Boolean(row)
+}
+
 function addColumnIfMissing(table: string, column: string, definition: string): void {
+  if (!tableExists(table)) return
   const columns = getTableColumns(table)
   if (!columns.includes(column)) {
     console.log(`[MIGRATE] Adding column ${table}.${column}`)
@@ -76,6 +86,13 @@ export async function migrate(): Promise<void> {
       console.log('[MIGRATE] Adding is_packaging column to units')
       db.exec(`ALTER TABLE units ADD COLUMN is_packaging INTEGER NOT NULL DEFAULT 0`)
     }
+
+    // Link existing purchases/sales to the new supplier/customer master tables.
+    // This must happen BEFORE schema.sql runs: schema.sql contains
+    // CREATE INDEX statements on these columns, which would fail on an
+    // existing table that doesn't have them yet.
+    addColumnIfMissing('purchases', 'supplier_id', 'TEXT REFERENCES suppliers(id)')
+    addColumnIfMissing('sales', 'customer_id', 'TEXT REFERENCES customers(id)')
 
     // ── Step 2: Create/update tables and seed data ──
     // Disable FK enforcement during schema execution to allow seed INSERTs
@@ -131,6 +148,38 @@ export async function migrate(): Promise<void> {
           created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
       `)
+    }
+
+    // ── Step 3b: Rebuild product_units without ck_at_least_one_role ──
+    // Older schema required every product_units row to be a purchase OR selling
+    // unit. User-defined "additional units" may be neither, so the CHECK
+    // constraint must go. SQLite cannot DROP a CHECK constraint, so we rebuild.
+    const puTableSql = (
+      db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'product_units'`).get() as { sql?: string } | undefined
+    )?.sql ?? ''
+    if (puTableSql.includes('ck_at_least_one_role')) {
+      console.log('[MIGRATE] Rebuilding product_units without ck_at_least_one_role constraint')
+      db.pragma('foreign_keys = OFF')
+      db.exec(`
+        CREATE TABLE product_units_new (
+          id TEXT PRIMARY KEY,
+          product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+          unit_id TEXT NOT NULL REFERENCES units(id),
+          factor_to_base REAL NOT NULL CHECK (factor_to_base > 0),
+          is_purchase_unit INTEGER NOT NULL DEFAULT 0,
+          is_selling_unit INTEGER NOT NULL DEFAULT 0,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          CONSTRAINT uq_product_unit UNIQUE (product_id, unit_id)
+        );
+        INSERT INTO product_units_new (id, product_id, unit_id, factor_to_base, is_purchase_unit, is_selling_unit, is_active, created_at)
+          SELECT id, product_id, unit_id, factor_to_base, is_purchase_unit, is_selling_unit, is_active, created_at FROM product_units;
+        DROP TABLE product_units;
+        ALTER TABLE product_units_new RENAME TO product_units;
+        CREATE INDEX IF NOT EXISTS idx_product_units_product ON product_units(product_id);
+        CREATE INDEX IF NOT EXISTS idx_product_units_unit ON product_units(unit_id);
+      `)
+      db.pragma('foreign_keys = ON')
     }
 
     // ── Step 4: Populate measurement_type_id for existing units ──

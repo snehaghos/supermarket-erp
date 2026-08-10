@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { ReactNode } from 'react'
 
 interface FormInputProps {
   label: string
@@ -12,7 +12,14 @@ interface FormInputProps {
 }
 
 export function FormInput({
-  label, value, onChange, placeholder, required, type, hint, icon,
+  label,
+  value,
+  onChange,
+  placeholder,
+  required,
+  type,
+  hint,
+  icon,
 }: FormInputProps) {
   return (
     <div>
@@ -20,11 +27,15 @@ export function FormInput({
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <div className="relative">
-        {icon && <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</div>}
+        {icon && (
+          <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+            {icon}
+          </div>
+        )}
         <input
           type={type ?? 'text'}
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           className={`w-full h-9 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-colors ${icon ? 'pl-8 pr-3' : 'px-3'}`}
         />

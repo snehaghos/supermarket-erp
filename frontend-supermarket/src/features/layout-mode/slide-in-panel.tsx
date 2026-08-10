@@ -1,7 +1,8 @@
-"use client"
+'use client'
 
-import { useEffect, useRef, type ReactNode } from "react"
-import { X } from "lucide-react"
+import { useEffect, useRef } from 'react'
+import { X } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 interface SlideInPanelProps {
   open: boolean
@@ -21,7 +22,7 @@ export function SlideInPanel({
   subtitle,
   icon,
   children,
-  width = "max-w-lg",
+  width = 'max-w-lg',
   showHeader = true,
 }: SlideInPanelProps & { showHeader?: boolean }) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -30,10 +31,10 @@ export function SlideInPanel({
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+      if (e.key === 'Escape') onClose()
     }
-    document.addEventListener("keydown", handler)
-    return () => document.removeEventListener("keydown", handler)
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
   }, [open, onClose])
 
   if (!open) return null
@@ -61,9 +62,13 @@ export function SlideInPanel({
                 </div>
               )}
               <div className="min-w-0">
-                <h3 className="font-semibold text-sm text-foreground truncate">{title}</h3>
+                <h3 className="font-semibold text-sm text-foreground truncate">
+                  {title}
+                </h3>
                 {subtitle && (
-                  <p className="text-[11px] text-muted-foreground truncate">{subtitle}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {subtitle}
+                  </p>
                 )}
               </div>
             </div>

@@ -1,42 +1,88 @@
-"use client"
+'use client'
 
-import { useState, useEffect, useCallback } from "react"
-import { Plus, RefreshCw, Search } from "lucide-react"
-import {
-  productsApi, unitsApi,
-  type ProductWithRelations, type CreateProductInput, type UpdateProductInput,
-  type UnitRow, type DisplayStock,
-} from "@/lib/api"
-import { showSuccess, showApiError } from "@/lib/errors"
-import { ProductForm } from "./product-form"
-import { ProductTable } from "./product-table"
-import { ProductDetailsPage } from "./product-details"
-import { useLayoutMode, SlideInPanel } from "@/features/layout-mode"
+import { useCallback, useEffect, useState } from 'react'
+import { Plus, RefreshCw, Search } from 'lucide-react'
+import { ProductForm } from './product-form'
+import { ProductTable } from './product-table'
+import { ProductDetailsPage } from './product-details'
+import type {
+  CreateProductInput,
+  DisplayStock,
+  ProductWithRelations,
+  UnitRow,
+  UpdateProductInput,
+} from '@/lib/api'
+import { showApiError, showSuccess } from '@/lib/errors'
+import { productsApi, unitsApi } from '@/lib/api'
+import { SlideInPanel, useLayoutMode } from '@/features/layout-mode'
 
 const emptyForm: CreateProductInput = {
-  name: '', category: 'General', sku: '', barcode: '', brand: '', description: '',
-  baseUnitId: '', purchaseUnitId: null, purchaseUnitFactor: undefined, sellingUnitId: null, sellingUnitFactor: undefined,
-  purchasePrice: 0, sellingPrice: 0, mrp: 0, taxClass: '',
-  minStock: 0, maxStock: 0, reorderLevel: 0,
-  trackBatch: false, trackExpiry: false, trackSerialNumber: false,
+  name: '',
+  category: 'General',
+  sku: '',
+  barcode: '',
+  brand: '',
+  description: '',
+  baseUnitId: '',
+  purchaseUnitId: null,
+  purchaseUnitFactor: undefined,
+  sellingUnitId: null,
+  sellingUnitFactor: undefined,
+  purchasePrice: 0,
+  sellingPrice: 0,
+  mrp: 0,
+  taxClass: '',
+  minStock: 0,
+  maxStock: 0,
+  reorderLevel: 0,
+  trackBatch: false,
+  trackExpiry: false,
+  trackSerialNumber: false,
   status: 'active',
   additionalUnits: [],
   productConversions: [],
 }
 
-export function ProductsSection() {
+export function ProductsSection({
+  initialSearch,
+  focusProductId,
+  onFocusProductIdChange,
+}: {
+  initialSearch?: string
+  focusProductId?: string | null
+  onFocusProductIdChange?: (id: string | null) => void
+} = {}) {
   const { mode } = useLayoutMode()
-  const [products, setProducts] = useState<ProductWithRelations[]>([])
-  const [units, setUnits] = useState<UnitRow[]>([])
-  const [displayStocks, setDisplayStocks] = useState<Record<string, DisplayStock>>({})
+  const [products, setProducts] = useState<Array<ProductWithRelations>>([])
+  const [units, setUnits] = useState<Array<UnitRow>>([])
+  const [displayStocks, setDisplayStocks] = useState<
+    Record<string, DisplayStock>
+  >({})
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<CreateProductInput>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
+  const [search, setSearch] = useState(initialSearch ?? '')
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    focusProductId ?? null,
+  )
+
+  // Keep search + selection in sync with global navigation (header search, alerts)
+  useEffect(() => {
+    if (initialSearch !== undefined) setSearch(initialSearch)
+  }, [initialSearch])
+
+  useEffect(() => {
+    if (focusProductId !== undefined) setSelectedProductId(focusProductId)
+  }, [focusProductId])
+
+  const handleSelectProduct = (product: ProductWithRelations) => {
+    setSelectedProductId(product.id)
+    setSearch('')
+    onFocusProductIdChange?.(null)
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -69,17 +115,27 @@ export function ProductsSection() {
     }
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
-  const resetForm = () => { setForm(emptyForm); setEditingId(null); setShowForm(false) }
+  const resetForm = () => {
+    setForm(emptyForm)
+    setEditingId(null)
+    setShowForm(false)
+  }
 
   const openEdit = (product: ProductWithRelations) => {
     // Find the purchase unit factor from product conversions
     const purchaseConv = product.productConversions.find(
-      c => c.fromUnitId === product.purchaseUnitId && c.toUnitId === product.baseUnitId
+      (c) =>
+        c.fromUnitId === product.purchaseUnitId &&
+        c.toUnitId === product.baseUnitId,
     )
     const sellingConv = product.productConversions.find(
-      c => c.fromUnitId === product.sellingUnitId && c.toUnitId === product.baseUnitId
+      (c) =>
+        c.fromUnitId === product.sellingUnitId &&
+        c.toUnitId === product.baseUnitId,
     )
 
     setForm({
@@ -106,16 +162,35 @@ export function ProductsSection() {
       reorderLevel: product.reorderLevel,
       status: product.status,
       additionalUnits: product.units
-        .filter(u => u.unitId !== product.baseUnitId)
-        .map(u => ({ unitId: u.unitId, isPurchaseUnit: u.isPurchaseUnit, isSellingUnit: u.isSellingUnit })),
-      productConversions: product.productConversions.filter(c =>
-        !(c.fromUnitId === product.purchaseUnitId && c.toUnitId === product.baseUnitId) &&
-        !(c.fromUnitId === product.sellingUnitId && c.toUnitId === product.baseUnitId)
-      ).map(c => ({
-        fromUnitId: c.fromUnitId,
-        toUnitId: c.toUnitId,
-        conversionFactor: c.conversionFactor,
-      })),
+        .filter(
+          (u) =>
+            u.unitId !== product.baseUnitId &&
+            u.unitId !== product.purchaseUnitId &&
+            u.unitId !== product.sellingUnitId,
+        )
+        .map((u) => ({
+          unitId: u.unitId,
+          factorToBase: u.factorToBase,
+          isPurchaseUnit: u.isPurchaseUnit,
+          isSellingUnit: u.isSellingUnit,
+        })),
+      productConversions: product.productConversions
+        .filter(
+          (c) =>
+            !(
+              c.fromUnitId === product.purchaseUnitId &&
+              c.toUnitId === product.baseUnitId
+            ) &&
+            !(
+              c.fromUnitId === product.sellingUnitId &&
+              c.toUnitId === product.baseUnitId
+            ),
+        )
+        .map((c) => ({
+          fromUnitId: c.fromUnitId,
+          toUnitId: c.toUnitId,
+          conversionFactor: c.conversionFactor,
+        })),
     })
     setEditingId(product.id)
     setShowForm(true)
@@ -134,27 +209,40 @@ export function ProductsSection() {
         if (form.description) input.description = form.description
         if (form.baseUnitId) input.baseUnitId = form.baseUnitId
         input.purchaseUnitId = form.purchaseUnitId
-        if (form.purchaseUnitFactor !== undefined) input.purchaseUnitFactor = form.purchaseUnitFactor
+        if (form.purchaseUnitFactor !== undefined)
+          input.purchaseUnitFactor = form.purchaseUnitFactor
         input.sellingUnitId = form.sellingUnitId
-        if (form.sellingUnitFactor !== undefined) input.sellingUnitFactor = form.sellingUnitFactor
-        if (form.purchasePrice !== undefined) input.purchasePrice = form.purchasePrice
-        if (form.sellingPrice !== undefined) input.sellingPrice = form.sellingPrice
+        if (form.sellingUnitFactor !== undefined)
+          input.sellingUnitFactor = form.sellingUnitFactor
+        if (form.purchasePrice !== undefined)
+          input.purchasePrice = form.purchasePrice
+        if (form.sellingPrice !== undefined)
+          input.sellingPrice = form.sellingPrice
         if (form.mrp !== undefined) input.mrp = form.mrp
         if (form.taxClass !== undefined) input.taxClass = form.taxClass
         if (form.minStock >= 0) input.minStock = form.minStock
         if (form.maxStock !== undefined) input.maxStock = form.maxStock
-        if (form.reorderLevel !== undefined) input.reorderLevel = form.reorderLevel
+        if (form.reorderLevel !== undefined)
+          input.reorderLevel = form.reorderLevel
         if (form.trackBatch !== undefined) input.trackBatch = form.trackBatch
         if (form.trackExpiry !== undefined) input.trackExpiry = form.trackExpiry
-        if (form.trackSerialNumber !== undefined) input.trackSerialNumber = form.trackSerialNumber
+        if (form.trackSerialNumber !== undefined)
+          input.trackSerialNumber = form.trackSerialNumber
         if (form.status) input.status = form.status
         if (form.additionalUnits) input.additionalUnits = form.additionalUnits
-        if (form.productConversions) input.productConversions = form.productConversions
+        if (form.productConversions)
+          input.productConversions = form.productConversions
         await productsApi.update(editingId, input)
-        showSuccess('Product updated', 'The product has been saved successfully.')
+        showSuccess(
+          'Product updated',
+          'The product has been saved successfully.',
+        )
       } else {
         await productsApi.create(form)
-        showSuccess('Product created', 'The new product has been added to inventory.')
+        showSuccess(
+          'Product created',
+          'The new product has been added to inventory.',
+        )
       }
       resetForm()
       await fetchData()
@@ -169,7 +257,10 @@ export function ProductsSection() {
     setDeletingId(id)
     try {
       await productsApi.delete(id)
-      showSuccess('Product deleted', 'The product has been removed from inventory.')
+      showSuccess(
+        'Product deleted',
+        'The product has been removed from inventory.',
+      )
       await fetchData()
     } catch (err) {
       showApiError(err)
@@ -178,23 +269,26 @@ export function ProductsSection() {
     }
   }
 
-  const activeUnits = units.filter(u => u.status === 'active')
+  const activeUnits = units.filter((u) => u.status === 'active')
 
   // Merge display stocks into products
-  const productsWithStock = products.map(p => ({
+  const productsWithStock = products.map((p) => ({
     ...p,
     displayStock: displayStocks[p.id],
   }))
 
   // If a product is selected, show its details page
   if (selectedProductId) {
-    const product = products.find(p => p.id === selectedProductId)
+    const product = products.find((p) => p.id === selectedProductId)
     if (product) {
       return (
         <ProductDetailsPage
           product={product}
           activeUnits={activeUnits}
-          onBack={() => setSelectedProductId(null)}
+          onBack={() => {
+            setSelectedProductId(null)
+            onFocusProductIdChange?.(null)
+          }}
         />
       )
     }
@@ -205,13 +299,26 @@ export function ProductsSection() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-foreground">Products</h2>
-          <p className="text-sm text-muted-foreground">Manage products and inventory</p>
+          <p className="text-sm text-muted-foreground">
+            Manage products and inventory
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={fetchData} disabled={loading} className="p-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50" title="Refresh">
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="p-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button onClick={() => { resetForm(); setShowForm(true) }} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm">
+          <button
+            onClick={() => {
+              resetForm()
+              setShowForm(true)
+            }}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+          >
             <Plus className="w-4 h-4" /> Add Product
           </button>
         </div>
@@ -224,7 +331,11 @@ export function ProductsSection() {
           editingId={editingId}
           saving={saving}
           activeUnits={activeUnits}
-          existingConversions={editingId ? products.find(p => p.id === editingId)?.productConversions : undefined}
+          existingConversions={
+            editingId
+              ? products.find((p) => p.id === editingId)?.productConversions
+              : undefined
+          }
           onFormChange={setForm}
           onSave={handleSave}
           onCancel={resetForm}
@@ -232,14 +343,24 @@ export function ProductsSection() {
       )}
 
       {showForm && mode === 'modal' && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto" onClick={resetForm}>
-          <div className="w-full max-w-4xl animate-in zoom-in-95 fade-in duration-200" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto"
+          onClick={resetForm}
+        >
+          <div
+            className="w-full max-w-4xl animate-in zoom-in-95 fade-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <ProductForm
               form={form}
               editingId={editingId}
               saving={saving}
               activeUnits={activeUnits}
-              existingConversions={editingId ? products.find(p => p.id === editingId)?.productConversions : undefined}
+              existingConversions={
+                editingId
+                  ? products.find((p) => p.id === editingId)?.productConversions
+                  : undefined
+              }
               onFormChange={setForm}
               onSave={handleSave}
               onCancel={resetForm}
@@ -261,7 +382,11 @@ export function ProductsSection() {
             editingId={editingId}
             saving={saving}
             activeUnits={activeUnits}
-            existingConversions={editingId ? products.find(p => p.id === editingId)?.productConversions : undefined}
+            existingConversions={
+              editingId
+                ? products.find((p) => p.id === editingId)?.productConversions
+                : undefined
+            }
             onFormChange={setForm}
             onSave={handleSave}
             onCancel={resetForm}
@@ -273,7 +398,7 @@ export function ProductsSection() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Search products..."
           className="w-full h-9 pl-9 pr-3 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-input transition-colors"
         />
@@ -286,7 +411,7 @@ export function ProductsSection() {
         deletingId={deletingId}
         onEdit={openEdit}
         onDelete={handleDelete}
-        onViewDetails={(p) => { setSelectedProductId(p.id); setSearch('') }}
+        onViewDetails={handleSelectProduct}
       />
     </div>
   )

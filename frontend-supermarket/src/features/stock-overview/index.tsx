@@ -1,1 +1,1 @@
-export { StockOverviewSection } from "./components/stock-overview"
+export { StockOverviewSection } from './components/stock-overview'

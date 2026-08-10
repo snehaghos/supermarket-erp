@@ -1,1 +1,1 @@
-export { SuppliersSection } from "./components/suppliers"
+export { SuppliersSection } from './components/suppliers'

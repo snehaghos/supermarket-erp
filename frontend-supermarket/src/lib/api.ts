@@ -10,16 +10,19 @@ export interface ValidationDetail {
 export class ApiError extends Error {
   public readonly code: string
   public readonly status: number
-  public readonly details: ValidationDetail[]
+  public readonly details: Array<ValidationDetail>
   public readonly timestamp: string
 
-  constructor(response: {
-    error?: string
-    code?: string
-    status?: number
-    details?: ValidationDetail[]
-    timestamp?: string
-  }, httpStatus: number) {
+  constructor(
+    response: {
+      error?: string
+      code?: string
+      status?: number
+      details?: Array<ValidationDetail>
+      timestamp?: string
+    },
+    httpStatus: number,
+  ) {
     super(response.error || `Request failed (HTTP ${httpStatus})`)
     this.name = 'ApiError'
     this.code = response.code || 'UNKNOWN_ERROR'
@@ -31,8 +34,10 @@ export class ApiError extends Error {
   /** Returns a user-friendly summary of the error */
   get userMessage(): string {
     if (this.code === 'VALIDATION_ERROR' && this.details.length > 0) {
-      const fieldNames = this.details.map(d => {
-        const label = d.field.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())
+      const fieldNames = this.details.map((d) => {
+        const label = d.field
+          .replace(/([A-Z])/g, ' $1')
+          .replace(/^./, (s) => s.toUpperCase())
         return `${label}: ${d.message}`
       })
       return fieldNames.join('; ')
@@ -64,7 +69,14 @@ export class ApiError extends Error {
   }
 
   /** Machine-readable error type for categorization */
-  get type(): 'validation' | 'not_found' | 'conflict' | 'auth' | 'server' | 'network' | 'unknown' {
+  get type():
+    | 'validation'
+    | 'not_found'
+    | 'conflict'
+    | 'auth'
+    | 'server'
+    | 'network'
+    | 'unknown' {
     if (this.code === 'VALIDATION_ERROR') return 'validation'
     if (this.code === 'NOT_FOUND') return 'not_found'
     if (this.code.startsWith('DUPLICATE')) return 'conflict'
@@ -195,7 +207,7 @@ export interface ConversionStep {
 }
 
 export interface PreviewResult {
-  steps: ConversionStep[]
+  steps: Array<ConversionStep>
 }
 
 export interface HealthCheck {
@@ -244,9 +256,9 @@ export interface ProductWithRelations {
   purchaseUnitSymbol: string | null
   sellingUnitName: string | null
   sellingUnitSymbol: string | null
-  units: ProductUnitRow[]
-  productConversions: ProductConversionRow[]
-  productImages: ProductImageRow[]
+  units: Array<ProductUnitRow>
+  productConversions: Array<ProductConversionRow>
+  productImages: Array<ProductImageRow>
 }
 
 export interface ProductUnitRow {
@@ -315,8 +327,17 @@ export interface CreateProductInput {
   mrp?: number
   taxClass?: string
   status?: 'active' | 'inactive' | 'discontinued'
-  additionalUnits: { unitId: string; isPurchaseUnit: boolean; isSellingUnit: boolean }[]
-  productConversions?: { fromUnitId: string; toUnitId: string; conversionFactor: number }[]
+  additionalUnits: Array<{
+    unitId: string
+    factorToBase?: number
+    isPurchaseUnit: boolean
+    isSellingUnit: boolean
+  }>
+  productConversions?: Array<{
+    fromUnitId: string
+    toUnitId: string
+    conversionFactor: number
+  }>
 }
 
 export interface UpdateProductInput {
@@ -342,9 +363,18 @@ export interface UpdateProductInput {
   trackBatch?: boolean
   trackExpiry?: boolean
   trackSerialNumber?: boolean
-  additionalUnits?: { unitId: string; isPurchaseUnit: boolean; isSellingUnit: boolean }[]
-  productConversions?: { fromUnitId: string; toUnitId: string; conversionFactor: number }[]
-  productImages?: string[]
+  additionalUnits?: Array<{
+    unitId: string
+    factorToBase?: number
+    isPurchaseUnit: boolean
+    isSellingUnit: boolean
+  }>
+  productConversions?: Array<{
+    fromUnitId: string
+    toUnitId: string
+    conversionFactor: number
+  }>
+  productImages?: Array<string>
   status?: 'active' | 'inactive' | 'discontinued'
 }
 
@@ -353,6 +383,7 @@ export interface PurchaseStockInput {
   unitId: string
   quantity: number
   unitPrice: number
+  supplierId?: string
   supplierName: string
   notes: string
 }
@@ -362,6 +393,7 @@ export interface SellStockInput {
   unitId: string
   quantity: number
   unitPrice: number
+  customerId?: string
   customerName: string
   notes: string
 }
@@ -401,15 +433,91 @@ export interface DisplayStock {
   baseQuantity: number
   baseUnitName: string
   baseUnitSymbol: string
-  display: { unitId: string; unitName: string; unitSymbol: string; quantity: number }[]
+  display: Array<{
+    unitId: string
+    unitName: string
+    unitSymbol: string
+    quantity: number
+  }>
   displayText: string
   isLowStock: boolean
+}
+
+export interface PurchaseItemRow {
+  id: string
+  purchaseId: string
+  productId: string
+  productName: string
+  productSku: string
+  unitId: string
+  unitName: string
+  unitSymbol: string
+  quantity: number
+  baseQuantity: number
+  unitPrice: number
+  totalPrice: number
+  createdAt: string
+}
+
+export interface PurchaseRow {
+  id: string
+  purchaseNumber: string
+  supplierId: string | null
+  supplierName: string
+  notes: string
+  totalItems: number
+  createdAt: string
+  updatedAt: string
+  items?: Array<PurchaseItemRow>
+}
+
+export interface SaleItemRow {
+  id: string
+  saleId: string
+  productId: string
+  productName: string
+  productSku: string
+  unitId: string
+  unitName: string
+  unitSymbol: string
+  quantity: number
+  baseQuantity: number
+  unitPrice: number
+  totalPrice: number
+  createdAt: string
+}
+
+export interface SaleRow {
+  id: string
+  saleNumber: string
+  customerId: string | null
+  customerName: string
+  notes: string
+  totalItems: number
+  createdAt: string
+  updatedAt: string
+  items?: Array<SaleItemRow>
+}
+
+export interface ReturnStockInput {
+  productId: string
+  unitId: string
+  quantity: number
+  customerName?: string
+  reason?: string
+  notes?: string
 }
 
 export interface TransactionRow {
   id: string
   productId: string
-  transactionType: 'purchase' | 'sale' | 'adjustment' | 'opening_stock' | 'return'
+  productName: string
+  transactionType:
+    | 'purchase'
+    | 'sale'
+    | 'adjustment'
+    | 'opening_stock'
+    | 'return'
   unitId: string
   unitName: string
   unitSymbol: string
@@ -426,28 +534,32 @@ export interface TransactionRow {
 // ──── Measurement Types API ─────────────────────────────────────────
 
 export const measurementTypesApi = {
-  getAll: () => get<MeasurementTypeRow[]>('/measurement-types'),
+  getAll: () => get<Array<MeasurementTypeRow>>('/measurement-types'),
   getById: (id: string) => get<MeasurementTypeRow>(`/measurement-types/${id}`),
 }
 
 // ──── Units API ─────────────────────────────────────────────────────
 
 export const unitsApi = {
-  getAll: () => get<UnitRow[]>('/units'),
+  getAll: () => get<Array<UnitRow>>('/units'),
   getById: (id: string) => get<UnitRow>(`/units/${id}`),
-  getByMeasurementType: (measurementTypeId: string) => get<UnitRow[]>(`/units/by-type/${measurementTypeId}`),
+  getByMeasurementType: (measurementTypeId: string) =>
+    get<Array<UnitRow>>(`/units/by-type/${measurementTypeId}`),
   create: (input: CreateUnitInput) => post<UnitRow>('/units', input),
-  update: (id: string, input: UpdateUnitInput) => patch<UnitRow>(`/units/${id}`, input),
+  update: (id: string, input: UpdateUnitInput) =>
+    patch<UnitRow>(`/units/${id}`, input),
   delete: (id: string) => del(`/units/${id}`),
 }
 
 // ──── Conversions API ───────────────────────────────────────────────
 
 export const conversionsApi = {
-  getAll: () => get<ConversionRow[]>('/conversions'),
+  getAll: () => get<Array<ConversionRow>>('/conversions'),
   getById: (id: string) => get<ConversionRow>(`/conversions/${id}`),
-  create: (input: CreateConversionInput) => post<ConversionRow>('/conversions', input),
-  update: (id: string, input: UpdateConversionInput) => patch<ConversionRow>(`/conversions/${id}`, input),
+  create: (input: CreateConversionInput) =>
+    post<ConversionRow>('/conversions', input),
+  update: (id: string, input: UpdateConversionInput) =>
+    patch<ConversionRow>(`/conversions/${id}`, input),
   delete: (id: string) => del(`/conversions/${id}`),
   preview: (quantity: number, unitId: string) =>
     post<PreviewResult>('/conversions/preview', { quantity, unitId }),
@@ -456,34 +568,53 @@ export const conversionsApi = {
 // ──── Products API ──────────────────────────────────────────────────
 
 export const productsApi = {
-  getAll: () => get<ProductWithRelations[]>('/products'),
+  getAll: () => get<Array<ProductWithRelations>>('/products'),
   getById: (id: string) => get<ProductWithRelations>(`/products/${id}`),
-  create: (input: CreateProductInput) => post<ProductWithRelations>('/products', input),
-  update: (id: string, input: UpdateProductInput) => patch<ProductWithRelations>(`/products/${id}`, input),
+  create: (input: CreateProductInput) =>
+    post<ProductWithRelations>('/products', input),
+  update: (id: string, input: UpdateProductInput) =>
+    patch<ProductWithRelations>(`/products/${id}`, input),
   delete: (id: string) => del(`/products/${id}`),
-  purchase: (input: PurchaseStockInput) => post<PurchaseResult>('/products/stock/purchase', input),
-  sell: (input: SellStockInput) => post<SellResult>('/products/stock/sell', input),
-  adjust: (input: AdjustStockInput) => post<AdjustResult>('/products/stock/adjust', input),
+  purchase: (input: PurchaseStockInput) =>
+    post<PurchaseResult>('/products/stock/purchase', input),
+  sell: (input: SellStockInput) =>
+    post<SellResult>('/products/stock/sell', input),
+  adjust: (input: AdjustStockInput) =>
+    post<AdjustResult>('/products/stock/adjust', input),
   validateStock: (productId: string, unitId: string, quantity: number) =>
-    post<StockValidation>('/products/stock/validate', { productId, unitId, quantity }),
-  checkConversions: (baseUnitId: string, unitIds: string[]) =>
-    post<{ unitId: string; unitName: string; unitSymbol: string; valid: boolean; factor: number | null; error: string | null }[]>(
-      '/products/check-conversions', { baseUnitId, unitIds }
-    ),
-  getDisplayStock: (id: string) => get<DisplayStock>(`/products/${id}/stock/display`),
+    post<StockValidation>('/products/stock/validate', {
+      productId,
+      unitId,
+      quantity,
+    }),
+  getDisplayStock: (id: string) =>
+    get<DisplayStock>(`/products/${id}/stock/display`),
   getTransactions: (productId?: string) =>
-    get<TransactionRow[]>(`/products/transactions/all${productId ? `?productId=${productId}` : ''}`),
-  getPurchases: () => get<Record<string, unknown>[]>('/products/purchases/list'),
-  getPurchaseById: (id: string) => get<Record<string, unknown>>(`/products/purchases/${id}`),
-  getSales: () => get<Record<string, unknown>[]>('/products/sales/list'),
-  getSaleById: (id: string) => get<Record<string, unknown>>(`/products/sales/${id}`),
+    get<Array<TransactionRow>>(
+      `/products/transactions/all${productId ? `?productId=${productId}` : ''}`,
+    ),
+  returnStock: (input: ReturnStockInput) =>
+    post<{ remainingStock: number }>('/products/stock/return', input),
+  getPurchases: () => get<Array<PurchaseRow>>('/products/purchases/list'),
+  getPurchaseById: (id: string) =>
+    get<PurchaseRow>(`/products/purchases/${id}`),
+  getSales: () => get<Array<SaleRow>>('/products/sales/list'),
+  getSaleById: (id: string) => get<SaleRow>(`/products/sales/${id}`),
   // Product-specific conversions
   getProductConversions: (productId: string) =>
-    get<ProductConversionRow[]>(`/products/${productId}/conversions`),
-  createProductConversion: (productId: string, input: { fromUnitId: string; toUnitId: string; conversionFactor: number }) =>
-    post<ProductConversionRow>(`/products/${productId}/conversions`, input),
-  updateProductConversion: (id: string, input: { fromUnitId?: string; toUnitId?: string; conversionFactor?: number }) =>
-    patch<ProductConversionRow>(`/products/conversions/${id}`, input),
+    get<Array<ProductConversionRow>>(`/products/${productId}/conversions`),
+  createProductConversion: (
+    productId: string,
+    input: { fromUnitId: string; toUnitId: string; conversionFactor: number },
+  ) => post<ProductConversionRow>(`/products/${productId}/conversions`, input),
+  updateProductConversion: (
+    id: string,
+    input: {
+      fromUnitId?: string
+      toUnitId?: string
+      conversionFactor?: number
+    },
+  ) => patch<ProductConversionRow>(`/products/conversions/${id}`, input),
   deleteProductConversion: (id: string) => del(`/products/conversions/${id}`),
 }
 
@@ -592,19 +723,23 @@ export const healthApi = {
 // ──── Suppliers API ────────────────────────────────────────────────
 
 export const suppliersApi = {
-  getAll: () => get<SupplierRow[]>('/suppliers'),
+  getAll: () => get<Array<SupplierRow>>('/suppliers'),
   getById: (id: string) => get<SupplierRow>(`/suppliers/${id}`),
-  create: (input: CreateSupplierInput) => post<SupplierRow>('/suppliers', input),
-  update: (id: string, input: UpdateSupplierInput) => patch<SupplierRow>(`/suppliers/${id}`, input),
+  create: (input: CreateSupplierInput) =>
+    post<SupplierRow>('/suppliers', input),
+  update: (id: string, input: UpdateSupplierInput) =>
+    patch<SupplierRow>(`/suppliers/${id}`, input),
   delete: (id: string) => del(`/suppliers/${id}`),
 }
 
 // ──── Customers API ────────────────────────────────────────────────
 
 export const customersApi = {
-  getAll: () => get<CustomerRow[]>('/customers'),
+  getAll: () => get<Array<CustomerRow>>('/customers'),
   getById: (id: string) => get<CustomerRow>(`/customers/${id}`),
-  create: (input: CreateCustomerInput) => post<CustomerRow>('/customers', input),
-  update: (id: string, input: UpdateCustomerInput) => patch<CustomerRow>(`/customers/${id}`, input),
+  create: (input: CreateCustomerInput) =>
+    post<CustomerRow>('/customers', input),
+  update: (id: string, input: UpdateCustomerInput) =>
+    patch<CustomerRow>(`/customers/${id}`, input),
   delete: (id: string) => del(`/customers/${id}`),
 }

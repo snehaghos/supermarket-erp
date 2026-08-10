@@ -1,15 +1,19 @@
-"use client"
+'use client'
 
-import { useTheme } from "next-themes"
-import { useEffect, useState } from "react"
-import { Sun, Moon, Monitor } from "lucide-react"
+import { useTheme } from 'next-themes'
+import { useEffect, useState } from 'react'
+import { Monitor, Moon, Sun } from 'lucide-react'
 
-type ThemeOption = "light" | "dark" | "system"
+type ThemeOption = 'light' | 'dark' | 'system'
 
-const OPTIONS: { value: ThemeOption; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
-  { value: "light", icon: Sun, label: "Light" },
-  { value: "dark", icon: Moon, label: "Dark" },
-  { value: "system", icon: Monitor, label: "System" },
+const OPTIONS: Array<{
+  value: ThemeOption
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+}> = [
+  { value: 'light', icon: Sun, label: 'Light' },
+  { value: 'dark', icon: Moon, label: 'Dark' },
+  { value: 'system', icon: Monitor, label: 'System' },
 ]
 
 export function ThemeToggle() {
@@ -20,9 +24,7 @@ export function ThemeToggle() {
   useEffect(() => setMounted(true), [])
 
   if (!mounted) {
-    return (
-      <div className="w-20 h-8 rounded-lg bg-muted/30 animate-pulse" />
-    )
+    return <div className="w-20 h-8 rounded-lg bg-muted/30 animate-pulse" />
   }
 
   return (
@@ -36,8 +38,8 @@ export function ThemeToggle() {
             onClick={() => setTheme(opt.value)}
             className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
               isActive
-                ? "bg-card text-foreground shadow-sm border border-border"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                ? 'bg-card text-foreground shadow-sm border border-border'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
             }`}
             title={`${opt.label} mode`}
           >

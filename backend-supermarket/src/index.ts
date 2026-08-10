@@ -17,6 +17,8 @@ import unitRoutes from './modules/units/unit.routes'
 import conversionRoutes from './modules/conversions/conversion.routes'
 import productRoutes from './modules/products/product.routes'
 import measurementTypeRoutes from './modules/measurementTypes/measurementType.routes'
+import supplierRoutes from './modules/suppliers/supplier.routes'
+import customerRoutes from './modules/customers/customer.routes'
 
 const app = express()
 
@@ -101,6 +103,8 @@ app.use('/api/units', unitRoutes)
 app.use('/api/conversions', conversionRoutes)
 app.use('/api/products', productRoutes)
 app.use('/api/measurement-types', measurementTypeRoutes)
+app.use('/api/suppliers', supplierRoutes)
+app.use('/api/customers', customerRoutes)
 
 app.use(errorHandler)
 
@@ -128,6 +132,16 @@ async function start(): Promise<void> {
     console.log(`  GET    /api/health`)
   console.log(`  GET    /api/measurement-types`)
   console.log(`  GET    /api/measurement-types/:id`)
+  console.log(`  GET    /api/suppliers`)
+  console.log(`  GET    /api/suppliers/:id`)
+  console.log(`  POST   /api/suppliers`)
+  console.log(`  PATCH  /api/suppliers/:id`)
+  console.log(`  DELETE /api/suppliers/:id`)
+  console.log(`  GET    /api/customers`)
+  console.log(`  GET    /api/customers/:id`)
+  console.log(`  POST   /api/customers`)
+  console.log(`  PATCH  /api/customers/:id`)
+  console.log(`  DELETE /api/customers/:id`)
   console.log(`  GET    /api/units`)
   console.log(`  GET    /api/units/:id`)
   console.log(`  GET    /api/units/by-type/:measurementTypeId`)

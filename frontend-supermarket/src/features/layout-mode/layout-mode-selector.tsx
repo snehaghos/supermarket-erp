@@ -1,26 +1,32 @@
-"use client"
+'use client'
 
-import { useEffect, useRef, useState } from "react"
-import { LayoutPanelTop, LayoutPanelLeft, LayoutTemplate } from "lucide-react"
-import { useLayoutMode, type LayoutMode } from "./layout-mode-context"
+import { useEffect, useRef, useState } from 'react'
+import { LayoutPanelLeft, LayoutPanelTop, LayoutTemplate } from 'lucide-react'
+import { useLayoutMode } from './layout-mode-context'
+import type { LayoutMode } from './layout-mode-context'
 
-const MODE_OPTIONS: { value: LayoutMode; label: string; desc: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const MODE_OPTIONS: Array<{
+  value: LayoutMode
+  label: string
+  desc: string
+  icon: React.ComponentType<{ className?: string }>
+}> = [
   {
-    value: "modal",
-    label: "Modal",
-    desc: "Forms open as centered modal overlays",
+    value: 'modal',
+    label: 'Modal',
+    desc: 'Forms open as centered modal overlays',
     icon: LayoutTemplate,
   },
   {
-    value: "inline",
-    label: "Inline",
-    desc: "Forms appear inline on the page below the header",
+    value: 'inline',
+    label: 'Inline',
+    desc: 'Forms appear inline on the page below the header',
     icon: LayoutPanelTop,
   },
   {
-    value: "sidebar",
-    label: "Side Panel",
-    desc: "Forms slide in from the right side as a panel",
+    value: 'sidebar',
+    label: 'Side Panel',
+    desc: 'Forms slide in from the right side as a panel',
     icon: LayoutPanelLeft,
   },
 ]
@@ -36,8 +42,8 @@ export function LayoutModeSelector() {
         setOpen(false)
       }
     }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
   const current = MODE_OPTIONS.find((o) => o.value === mode)!
@@ -73,24 +79,26 @@ export function LayoutModeSelector() {
                   }}
                   className={`w-full flex items-start gap-2.5 px-3 py-2 rounded-lg text-left transition-all ${
                     isActive
-                      ? "bg-emerald-50 text-emerald-700 shadow-xs"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      ? 'bg-emerald-50 text-emerald-700 shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
                   <Icon
                     className={`w-4 h-4 mt-0.5 shrink-0 ${
-                      isActive ? "text-emerald-500" : "text-muted-foreground/60"
+                      isActive ? 'text-emerald-500' : 'text-muted-foreground/60'
                     }`}
                   />
                   <div>
                     <p
                       className={`text-xs font-medium ${
-                        isActive ? "text-emerald-700" : "text-foreground"
+                        isActive ? 'text-emerald-700' : 'text-foreground'
                       }`}
                     >
                       {opt.label}
                     </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {opt.desc}
+                    </p>
                   </div>
                 </button>
               )

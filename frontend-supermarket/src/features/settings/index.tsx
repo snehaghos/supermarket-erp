@@ -1,1 +1,1 @@
-export { SettingsSection } from "./components/settings"
+export { SettingsSection } from './components/settings'

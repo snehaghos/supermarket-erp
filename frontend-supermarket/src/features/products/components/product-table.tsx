@@ -1,15 +1,21 @@
-import { Edit2, Trash2, Loader2, Package, AlertTriangle, Eye } from "lucide-react"
-import type { ProductWithRelations } from "@/lib/api"
-import type { DisplayStock } from "@/lib/api"
+import {
+  AlertTriangle,
+  Edit2,
+  Eye,
+  Loader2,
+  Package,
+  Trash2,
+} from 'lucide-react'
+import type { DisplayStock, ProductWithRelations } from '@/lib/api'
 
 const statusMeta: Record<string, { color: string; label: string }> = {
-  active:        { color: 'bg-emerald-100 text-emerald-700', label: 'Active' },
-  inactive:      { color: 'bg-gray-100 text-gray-600', label: 'Inactive' },
-  discontinued:  { color: 'bg-red-100 text-red-700', label: 'Discontinued' },
+  active: { color: 'bg-emerald-100 text-emerald-700', label: 'Active' },
+  inactive: { color: 'bg-gray-100 text-gray-600', label: 'Inactive' },
+  discontinued: { color: 'bg-red-100 text-red-700', label: 'Discontinued' },
 }
 
 interface ProductTableProps {
-  products: ProductWithResults[]
+  products: Array<ProductWithResults>
   loading: boolean
   search: string
   deletingId: string | null
@@ -23,29 +29,44 @@ interface ProductWithResults extends ProductWithRelations {
 }
 
 export function ProductTable({
-  products, loading, search, deletingId,
-  onEdit, onDelete, onViewDetails,
+  products,
+  loading,
+  search,
+  deletingId,
+  onEdit,
+  onDelete,
+  onViewDetails,
 }: ProductTableProps) {
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.sku.toLowerCase().includes(search.toLowerCase()) ||
-    p.category.toLowerCase().includes(search.toLowerCase()) ||
-    p.productConversions.some(c =>
-      c.relationshipText.toLowerCase().includes(search.toLowerCase()) ||
-      c.fromUnitName.toLowerCase().includes(search.toLowerCase()) ||
-      c.toUnitName.toLowerCase().includes(search.toLowerCase())
-    )
+  const filtered = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.sku.toLowerCase().includes(search.toLowerCase()) ||
+      p.category.toLowerCase().includes(search.toLowerCase()) ||
+      p.productConversions.some(
+        (c) =>
+          c.relationshipText.toLowerCase().includes(search.toLowerCase()) ||
+          c.fromUnitName.toLowerCase().includes(search.toLowerCase()) ||
+          c.toUnitName.toLowerCase().includes(search.toLowerCase()),
+      ),
   )
 
   if (loading && !products.length) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-emerald-600" /></div>
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+      </div>
+    )
   }
 
   if (filtered.length === 0) {
     return (
       <div className="text-center py-16 border border-dashed border-border rounded-xl">
         <Package className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground">{search ? 'No matching products' : 'No products yet. Create one to get started.'}</p>
+        <p className="text-sm text-muted-foreground">
+          {search
+            ? 'No matching products'
+            : 'No products yet. Create one to get started.'}
+        </p>
       </div>
     )
   }
@@ -67,8 +88,16 @@ export function ProductTable({
             </tr>
           </thead>
           <tbody>
-            {filtered.map(product => (
-              <tr key={product.id} className={product.currentStock <= product.minStock && product.currentStock > 0 ? 'bg-amber-50/50' : ''}>
+            {filtered.map((product) => (
+              <tr
+                key={product.id}
+                className={
+                  product.currentStock <= product.minStock &&
+                  product.currentStock > 0
+                    ? 'bg-amber-50/50'
+                    : ''
+                }
+              >
                 <td>
                   <button
                     onClick={() => onViewDetails(product)}
@@ -82,34 +111,55 @@ export function ProductTable({
                         {product.name}
                       </p>
                       {product.description && (
-                        <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{product.description}</p>
+                        <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">
+                          {product.description}
+                        </p>
                       )}
                     </div>
                   </button>
                 </td>
                 <td>
-                  <code className="px-2 py-0.5 bg-muted rounded text-xs font-mono text-foreground">{product.sku}</code>
+                  <code className="px-2 py-0.5 bg-muted rounded text-xs font-mono text-foreground">
+                    {product.sku}
+                  </code>
                 </td>
                 <td>
-                  <span className="text-xs text-muted-foreground">{product.category}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {product.category}
+                  </span>
                 </td>
                 <td>
-                  <span className="text-xs font-medium">{product.baseUnitName}</span>
-                  <code className="ml-1 text-[10px] text-muted-foreground font-mono">({product.baseUnitSymbol})</code>
+                  <span className="text-xs font-medium">
+                    {product.baseUnitName}
+                  </span>
+                  <code className="ml-1 text-[10px] text-muted-foreground font-mono">
+                    ({product.baseUnitSymbol})
+                  </code>
                 </td>
                 <td>
                   {product.productConversions.length > 0 ? (
                     <div className="flex flex-col gap-1 max-w-[240px]">
                       {product.productConversions.slice(0, 2).map((conv, i) => (
-                        <span key={i} className="inline-flex items-center gap-1 text-[10px] font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md whitespace-nowrap">
-                          <span className="font-semibold">1 {conv.toUnitSymbol}</span>
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md whitespace-nowrap"
+                        >
+                          <span className="font-semibold">
+                            1 {conv.toUnitSymbol}
+                          </span>
                           <span className="text-purple-400">=</span>
-                          <span className="font-semibold">{conv.conversionFactor}</span>
-                          <span className="text-purple-500">{conv.fromUnitSymbol}</span>
+                          <span className="font-semibold">
+                            {conv.conversionFactor}
+                          </span>
+                          <span className="text-purple-500">
+                            {conv.fromUnitSymbol}
+                          </span>
                         </span>
                       ))}
                       {product.productConversions.length > 2 && (
-                        <span className="text-[10px] text-muted-foreground italic">+{product.productConversions.length - 2} more</span>
+                        <span className="text-[10px] text-muted-foreground italic">
+                          +{product.productConversions.length - 2} more
+                        </span>
                       )}
                     </div>
                   ) : (
@@ -118,12 +168,19 @@ export function ProductTable({
                 </td>
                 <td>
                   <div className="flex items-center gap-2">
-                    <div className={`text-sm font-semibold ${product.currentStock <= product.minStock ? 'text-red-600' : 'text-foreground'}`}>
-                      {product.displayStock?.displayText ?? `${product.currentStock} ${product.baseUnitSymbol}`}
+                    <div
+                      className={`text-sm font-semibold ${product.currentStock <= product.minStock ? 'text-red-600' : 'text-foreground'}`}
+                    >
+                      {product.displayStock?.displayText ??
+                        `${product.currentStock} ${product.baseUnitSymbol}`}
                     </div>
-                    {product.currentStock <= product.minStock && product.currentStock > 0 && (
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" aria-label="Low stock" />
-                    )}
+                    {product.currentStock <= product.minStock &&
+                      product.currentStock > 0 && (
+                        <AlertTriangle
+                          className="w-3.5 h-3.5 text-amber-500 shrink-0"
+                          aria-label="Low stock"
+                        />
+                      )}
                     {product.currentStock === 0 && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
                         Out of stock
@@ -132,13 +189,21 @@ export function ProductTable({
                   </div>
                 </td>
                 <td>
-                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                    statusMeta[product.status]?.color ?? 'bg-muted text-muted-foreground'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      product.status === 'active' ? 'bg-emerald-500' :
-                      product.status === 'inactive' ? 'bg-gray-400' : 'bg-red-400'
-                    }`} />
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                      statusMeta[product.status]?.color ??
+                      'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        product.status === 'active'
+                          ? 'bg-emerald-500'
+                          : product.status === 'inactive'
+                            ? 'bg-gray-400'
+                            : 'bg-red-400'
+                      }`}
+                    />
                     {statusMeta[product.status]?.label ?? product.status}
                   </span>
                 </td>
@@ -151,7 +216,11 @@ export function ProductTable({
                     >
                       <Eye className="w-4 h-4" />
                     </button>
-                    <button onClick={() => onEdit(product)} className="p-1.5 rounded-md hover:bg-blue-50 text-blue-600 transition-colors" title="Edit">
+                    <button
+                      onClick={() => onEdit(product)}
+                      className="p-1.5 rounded-md hover:bg-blue-50 text-blue-600 transition-colors"
+                      title="Edit"
+                    >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
@@ -160,7 +229,11 @@ export function ProductTable({
                       className="p-1.5 rounded-md hover:bg-red-50 text-red-600 transition-colors disabled:opacity-50"
                       title="Delete"
                     >
-                      {deletingId === product.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      {deletingId === product.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </td>

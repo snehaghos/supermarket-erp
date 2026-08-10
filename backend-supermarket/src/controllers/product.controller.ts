@@ -8,6 +8,7 @@ import type {
   PurchaseStockInput,
   SellStockInput,
   AdjustStockInput,
+  ReturnStockInput,
 } from '../modules/products/product.validation'
 
 // ── Product CRUD ─────────────────────────────────────────────────
@@ -60,6 +61,12 @@ export async function adjustStock(req: Request, res: Response): Promise<void> {
   res.json(result)
 }
 
+export async function returnStock(req: Request, res: Response): Promise<void> {
+  const input = req.body as ReturnStockInput
+  const result = await productService.returnStock(input)
+  res.status(201).json(result)
+}
+
 export async function validateStock(req: Request, res: Response): Promise<void> {
   const { productId, unitId, quantity } = req.body as { productId: string; unitId: string; quantity: number }
   const result = await productService.validateStockAvailability(productId, unitId, quantity)
@@ -68,12 +75,6 @@ export async function validateStock(req: Request, res: Response): Promise<void> 
 
 export async function getDisplayStock(req: Request, res: Response): Promise<void> {
   const result = await productService.getDisplayStock(req.params.id!)
-  res.json(result)
-}
-
-export async function checkConversions(req: Request, res: Response): Promise<void> {
-  const { baseUnitId, unitIds } = req.body as { baseUnitId: string; unitIds: string[] }
-  const result = await productService.checkConversionPaths(baseUnitId, unitIds)
   res.json(result)
 }
 

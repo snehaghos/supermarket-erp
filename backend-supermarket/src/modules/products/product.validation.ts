@@ -32,6 +32,7 @@ export const createProductSchema = z.object({
   additionalUnits: z.array(
     z.object({
       unitId: z.string().uuid('Invalid unit ID'),
+      factorToBase: z.number().positive('Conversion factor must be positive').optional(),
       isPurchaseUnit: z.boolean().default(false),
       isSellingUnit: z.boolean().default(false),
     })
@@ -77,6 +78,7 @@ export const updateProductSchema = z.object({
   additionalUnits: z.array(
     z.object({
       unitId: z.string().uuid('Invalid unit ID'),
+      factorToBase: z.number().positive('Conversion factor must be positive').optional(),
       isPurchaseUnit: z.boolean().default(false),
       isSellingUnit: z.boolean().default(false),
     })
@@ -110,6 +112,7 @@ export const purchaseStockSchema = z.object({
   unitId: z.string().uuid('Invalid unit ID'),
   quantity: z.number().positive('Quantity must be positive'),
   unitPrice: z.number().min(0, 'Unit price cannot be negative').default(0),
+  supplierId: z.string().uuid('Invalid supplier ID').optional().nullable(),
   supplierName: z.string().max(255).default(''),
   notes: z.string().default(''),
 })
@@ -119,6 +122,7 @@ export const sellStockSchema = z.object({
   unitId: z.string().uuid('Invalid unit ID'),
   quantity: z.number().positive('Quantity must be positive'),
   unitPrice: z.number().min(0, 'Unit price cannot be negative').default(0),
+  customerId: z.string().uuid('Invalid customer ID').optional().nullable(),
   customerName: z.string().max(255).default(''),
   notes: z.string().default(''),
 })
@@ -129,6 +133,15 @@ export const adjustStockSchema = z.object({
   notes: z.string().default(''),
 })
 
+export const returnStockSchema = z.object({
+  productId: z.string().uuid('Invalid product ID'),
+  unitId: z.string().uuid('Invalid unit ID'),
+  quantity: z.number().positive('Quantity must be positive'),
+  customerName: z.string().max(255).default(''),
+  reason: z.string().max(255).default(''),
+  notes: z.string().default(''),
+})
+
 export type CreateProductInput = z.infer<typeof createProductSchema>
 export type UpdateProductInput = z.infer<typeof updateProductSchema>
 export type CreateProductConversionInput = z.infer<typeof createProductConversionSchema>
@@ -136,5 +149,6 @@ export type UpdateProductConversionInput = z.infer<typeof updateProductConversio
 export type PurchaseStockInput = z.infer<typeof purchaseStockSchema>
 export type SellStockInput = z.infer<typeof sellStockSchema>
 export type AdjustStockInput = z.infer<typeof adjustStockSchema>
-export type AdditionalUnitInput = { unitId: string; isPurchaseUnit: boolean; isSellingUnit: boolean }
+export type ReturnStockInput = z.infer<typeof returnStockSchema>
+export type AdditionalUnitInput = { unitId: string; factorToBase?: number; isPurchaseUnit: boolean; isSellingUnit: boolean }
 export type ProductConversionInput = { fromUnitId: string; toUnitId: string; conversionFactor: number }

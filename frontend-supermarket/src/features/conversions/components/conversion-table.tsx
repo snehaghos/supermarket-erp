@@ -1,8 +1,8 @@
-import { Edit2, Trash2, Loader2 } from "lucide-react"
-import type { ConversionRow } from "@/lib/api"
+import { Edit2, Loader2, Trash2 } from 'lucide-react'
+import type { ConversionRow } from '@/lib/api'
 
 interface ConversionTableProps {
-  conversions: ConversionRow[]
+  conversions: Array<ConversionRow>
   loading: boolean
   search: string
   deletingId: string | null
@@ -10,21 +10,37 @@ interface ConversionTableProps {
   onDelete: (id: string) => void
 }
 
-export function ConversionTable({ conversions, loading, search, deletingId, onEdit, onDelete }: ConversionTableProps) {
-  const filtered = conversions.filter(c =>
-    c.parentUnitName.toLowerCase().includes(search.toLowerCase()) ||
-    c.childUnitName.toLowerCase().includes(search.toLowerCase()) ||
-    String(c.factor).includes(search)
+export function ConversionTable({
+  conversions,
+  loading,
+  search,
+  deletingId,
+  onEdit,
+  onDelete,
+}: ConversionTableProps) {
+  const filtered = conversions.filter(
+    (c) =>
+      c.parentUnitName.toLowerCase().includes(search.toLowerCase()) ||
+      c.childUnitName.toLowerCase().includes(search.toLowerCase()) ||
+      String(c.factor).includes(search),
   )
 
   if (loading && !conversions.length) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-emerald-600" /></div>
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+      </div>
+    )
   }
 
   if (filtered.length === 0) {
     return (
       <div className="text-center py-16 border border-dashed border-border rounded-xl">
-        <p className="text-sm text-muted-foreground">{search ? 'No matching conversions' : 'No conversions found. Add one to get started.'}</p>
+        <p className="text-sm text-muted-foreground">
+          {search
+            ? 'No matching conversions'
+            : 'No conversions found. Add one to get started.'}
+        </p>
       </div>
     )
   }
@@ -42,29 +58,46 @@ export function ConversionTable({ conversions, loading, search, deletingId, onEd
           </tr>
         </thead>
         <tbody>
-          {filtered.map(conv => (
+          {filtered.map((conv) => (
             <tr key={conv.id}>
               <td>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-foreground">{conv.parentUnitName}</span>
-                  <code className="text-[10px] text-muted-foreground font-mono">({conv.parentUnitSymbol})</code>
+                  <span className="font-medium text-foreground">
+                    {conv.parentUnitName}
+                  </span>
+                  <code className="text-[10px] text-muted-foreground font-mono">
+                    ({conv.parentUnitSymbol})
+                  </code>
                 </div>
               </td>
               <td>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-foreground">{conv.childUnitName}</span>
-                  <code className="text-[10px] text-muted-foreground font-mono">({conv.childUnitSymbol})</code>
+                  <span className="font-medium text-foreground">
+                    {conv.childUnitName}
+                  </span>
+                  <code className="text-[10px] text-muted-foreground font-mono">
+                    ({conv.childUnitSymbol})
+                  </code>
                 </div>
               </td>
               <td>
-                <code className="px-2 py-0.5 bg-muted rounded text-xs font-mono font-semibold text-foreground">{conv.factor}</code>
+                <code className="px-2 py-0.5 bg-muted rounded text-xs font-mono font-semibold text-foreground">
+                  {conv.factor}
+                </code>
               </td>
               <td>
-                <span className="text-xs text-muted-foreground">1 {conv.parentUnitSymbol} = {conv.factor} {conv.childUnitSymbol}</span>
+                <span className="text-xs text-muted-foreground">
+                  1 {conv.parentUnitSymbol} = {conv.factor}{' '}
+                  {conv.childUnitSymbol}
+                </span>
               </td>
               <td className="text-right">
                 <div className="flex items-center justify-end gap-1">
-                  <button onClick={() => onEdit(conv)} className="p-1.5 rounded-md hover:bg-blue-50 text-blue-600 transition-colors" title="Edit">
+                  <button
+                    onClick={() => onEdit(conv)}
+                    className="p-1.5 rounded-md hover:bg-blue-50 text-blue-600 transition-colors"
+                    title="Edit"
+                  >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
@@ -73,7 +106,11 @@ export function ConversionTable({ conversions, loading, search, deletingId, onEd
                     className="p-1.5 rounded-md hover:bg-red-50 text-red-600 transition-colors disabled:opacity-50"
                     title="Delete"
                   >
-                    {deletingId === conv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    {deletingId === conv.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </td>

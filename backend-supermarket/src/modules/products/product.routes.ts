@@ -7,6 +7,7 @@ import {
   purchaseStockSchema,
   sellStockSchema,
   adjustStockSchema,
+  returnStockSchema,
   createProductConversionSchema,
   updateProductConversionSchema,
 } from './product.validation'
@@ -24,10 +25,8 @@ router.delete('/:id', productController.remove)
 router.post('/stock/purchase', validate(purchaseStockSchema), productController.purchaseStock)
 router.post('/stock/sell', validate(sellStockSchema), productController.sellStock)
 router.post('/stock/adjust', validate(adjustStockSchema), productController.adjustStock)
+router.post('/stock/return', validate(returnStockSchema), productController.returnStock)
 router.post('/stock/validate', productController.validateStock)
-
-// Conversion validation
-router.post('/check-conversions', productController.checkConversions)
 
 // Display
 router.get('/:id/stock/display', productController.getDisplayStock)

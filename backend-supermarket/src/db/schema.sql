@@ -154,8 +154,7 @@ CREATE TABLE IF NOT EXISTS product_units (
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   
-  CONSTRAINT uq_product_unit UNIQUE (product_id, unit_id),
-  CONSTRAINT ck_at_least_one_role CHECK (is_purchase_unit = 1 OR is_selling_unit = 1)
+  CONSTRAINT uq_product_unit UNIQUE (product_id, unit_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_product_units_product ON product_units(product_id);
@@ -198,18 +197,72 @@ CREATE INDEX IF NOT EXISTS idx_transactions_type ON inventory_transactions(trans
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON inventory_transactions(created_at);
 
 -- ============================================================
+-- SUPPLIERS
+-- ============================================================
+-- Supplier master. Purchases link to suppliers via purchases.supplier_id.
+CREATE TABLE IF NOT EXISTS suppliers (
+  id TEXT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  gst VARCHAR(50) DEFAULT '',
+  contact_person VARCHAR(255) DEFAULT '',
+  email VARCHAR(255) DEFAULT '',
+  phone VARCHAR(50) DEFAULT '',
+  address TEXT DEFAULT '',
+  city VARCHAR(100) DEFAULT '',
+  state VARCHAR(100) DEFAULT '',
+  pincode VARCHAR(20) DEFAULT '',
+  credit_limit REAL NOT NULL DEFAULT 0 CHECK (credit_limit >= 0),
+  payment_terms VARCHAR(100) DEFAULT '',
+  outstanding_balance REAL NOT NULL DEFAULT 0 CHECK (outstanding_balance >= 0),
+  status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_suppliers_status ON suppliers(status);
+CREATE INDEX IF NOT EXISTS idx_suppliers_city ON suppliers(city);
+
+-- ============================================================
+-- CUSTOMERS
+-- ============================================================
+-- Customer master. Sales link to customers via sales.customer_id.
+CREATE TABLE IF NOT EXISTS customers (
+  id TEXT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) DEFAULT '',
+  phone VARCHAR(50) DEFAULT '',
+  address TEXT DEFAULT '',
+  city VARCHAR(100) DEFAULT '',
+  state VARCHAR(100) DEFAULT '',
+  pincode VARCHAR(20) DEFAULT '',
+  loyalty_points INTEGER NOT NULL DEFAULT 0,
+  credit_limit REAL NOT NULL DEFAULT 0 CHECK (credit_limit >= 0),
+  outstanding_balance REAL NOT NULL DEFAULT 0 CHECK (outstanding_balance >= 0),
+  status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status);
+CREATE INDEX IF NOT EXISTS idx_customers_city ON customers(city);
+
+-- ============================================================
 -- PURCHASES
 -- ============================================================
--- Purchase order records
+-- Purchase order records. supplier_id links to the supplier master;
+-- supplier_name is kept as a free-text fallback / denormalized copy.
 CREATE TABLE IF NOT EXISTS purchases (
   id TEXT PRIMARY KEY,
   purchase_number VARCHAR(100) NOT NULL UNIQUE,
+  supplier_id TEXT REFERENCES suppliers(id),
   supplier_name VARCHAR(255) DEFAULT '',
   notes TEXT DEFAULT '',
   total_items INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_purchases_supplier ON purchases(supplier_id);
 
 -- ============================================================
 -- PURCHASE ITEMS
@@ -232,16 +285,20 @@ CREATE INDEX IF NOT EXISTS idx_purchase_items_product ON purchase_items(product_
 -- ============================================================
 -- SALES
 -- ============================================================
--- Sales order records
+-- Sales order records. customer_id links to the customer master;
+-- customer_name is kept as a free-text fallback / denormalized copy.
 CREATE TABLE IF NOT EXISTS sales (
   id TEXT PRIMARY KEY,
   sale_number VARCHAR(100) NOT NULL UNIQUE,
+  customer_id TEXT REFERENCES customers(id),
   customer_name VARCHAR(255) DEFAULT '',
   notes TEXT DEFAULT '',
   total_items INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id);
 
 -- ============================================================
 -- SALE ITEMS

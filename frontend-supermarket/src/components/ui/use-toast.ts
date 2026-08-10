@@ -50,7 +50,7 @@ type Action =
     }
 
 interface State {
-  toasts: ToasterToast[]
+  toasts: Array<ToasterToast>
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
@@ -95,8 +95,8 @@ export const reducer = (state: State, action: Action): State => {
       if (toastId) {
         addToRemoveQueue(toastId)
       } else {
-        state.toasts.forEach((toast) => {
-          addToRemoveQueue(toast.id)
+        state.toasts.forEach((t) => {
+          addToRemoveQueue(t.id)
         })
       }
 
@@ -142,10 +142,10 @@ type Toast = Omit<ToasterToast, 'id'>
 function toast({ ...props }: Toast) {
   const id = genId()
 
-  const update = (props: ToasterToast) =>
+  const update = (updatedToast: ToasterToast) =>
     dispatch({
       type: 'UPDATE_TOAST',
-      toast: { ...props, id },
+      toast: { ...updatedToast, id },
     })
   const dismiss = () => dispatch({ type: 'DISMISS_TOAST', toastId: id })
 
